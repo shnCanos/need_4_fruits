@@ -35,35 +35,28 @@ pub struct Dash {
     // Defines whether the player is dashing
     pub dashed: usize,
     // The direction in which the player is dashing
-    pub direction: DashDirection,
+    pub direction: Vec2,
 
     // Timer for the player dash
     pub duration: Timer,
 }
 
-// The direction of a dash
-#[derive(Clone)]
-pub struct DashDirection {
-    pub x: f32,
-    pub y: f32,
+trait DashDirection {
+    fn add(&self, to_add: &Vec2) -> Vec2;
+    fn is_empty(&self) -> bool;
 }
 
-impl DashDirection {
-    fn add(&self, to_add: &DashDirection) -> DashDirection {
-        DashDirection {
-            x: self.x + to_add.x,
-            y: self.y + to_add.y,
-        }
+impl DashDirection for Vec2 {
+    fn add(&self, to_add: &Vec2) -> Vec2 {
+            Vec2 {
+                x: self.x + to_add.x,
+                y: self.y + to_add.y,
+            }
     }
     fn is_empty(&self) -> bool {
         self.x == 0. && self.y == 0.
     }
-}
-
-impl Default for DashDirection {
-    fn default() -> Self {
-        DashDirection { x: 0.0, y: 0.0 }
-    }
+    
 }
 
 impl Default for Dash {
@@ -72,7 +65,7 @@ impl Default for Dash {
             trying_to_dash: false,
             is_dashing: false,
             dashed: 0,
-            direction: DashDirection { x: 0.0, y: 0.0 },
+            direction: Vec2 { x: 0.0, y: 0.0 },
             duration: Timer::default(),
             
         }
@@ -250,34 +243,29 @@ fn dash_direction_arrows(
     };
 
     // Get inputs
-    let up = DashDirection {
+    let up = Vec2 {
         y: to_num(&controls.up),
         x: 0.,
     };
-    let down = DashDirection {
+    let down = Vec2 {
         y: -to_num(&controls.down),
         x: 0.,
     };
-    let left = DashDirection {
+    let left = Vec2 {
         y: 0.,
         x: -to_num(&controls.left),
     };
-    let right = DashDirection {
+    let right = Vec2 {
         y: 0.,
         x: to_num(&controls.right),
     };
 
     // Get diagonals
-    let mut direction: DashDirection = [up, down, left, right]
+    let mut direction: Vec2 = [up, down, left, right]
         .iter()
         .fold(dash.direction.clone(), |direction, udlr| {
             direction.add(udlr) // Add all the directions for instance: x: 1 + x: -1 = x: 0
         });
-
-    //if direction.x != 0. && direction.y != 0. {
-    //    direction.x *= 0.5;
-    //    direction.y *= 0.5;
-    //}
     
     if !direction.is_empty() {
         dash.trying_to_dash = true;
