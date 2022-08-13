@@ -35,3 +35,17 @@ pub struct MainCamera;
 pub struct Aim;
 //endregion
 
+//region IsOnWall
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Walls {
+    Left,
+    Right,
+    Floor,
+    Roof,
+
+    // This is to make sure the jows values are not overwritten when the player leaves a wall (Player only)
+    JustLeft,
+}
+#[derive(Debug, Component)]
+pub struct IsOnWall(pub Option<Walls>);
+//endregion

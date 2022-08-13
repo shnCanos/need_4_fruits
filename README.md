@@ -12,4 +12,4 @@ A fruit ninja like game, but with an actual ninja
 - Use Vec2 instead of DashDirection (Shnawblle)  [DONE]
 - Normalize dash's vector (Soulspark)
 - Enable dash cancelling by jumping [DONE]
-- Make a system to tell when the fruits have fallen (a more basic player_corner_system() clone)
+- Make a system to tell when the fruits have fallen (a more basic player_corner_system() clone) [DONE]

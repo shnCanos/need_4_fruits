@@ -1,7 +1,7 @@
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED};
-use crate::common_components::{GravityAffects, Velocity};
+use crate::common_components::{GravityAffects, IsOnWall, Velocity, Walls};
 use crate::controls::{Dash, Movement};
 
 //region Plugin boilerplate
@@ -67,16 +67,7 @@ impl Default for JumpOffWallSpeed {
 //endregion
 
 //region Player Only Resources
-#[derive(Debug)]
-pub enum Walls {
-    Left,
-    Right,
-    Floor,
-    Roof,
-    JustLeft, // This is to make sure the jows values are not overwritten when the player leaves a wall
-}
-#[derive(Debug, Component)]
-pub struct IsOnWall(pub Option<Walls>);
+
 //endregion
 
 fn spawn_player_system(
