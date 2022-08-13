@@ -298,26 +298,41 @@ fn dash_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed), With<Player>>,
     mut dash: ResMut<Dash>,
     time: Res<Time>,
+    movement: Res<Movement>
 ) {
+
     if !dash.is_dashing {
         return; // Do nothing
     }
-    for (mut velocity, mut jows) in query.iter_mut() {
-        if dash.duration.finished() {
-            // Rewrite the dashed variables
-            dash.direction = Vec2::default();
-            dash.is_dashing = false;
-            dash.trying_to_dash = false;
-            dash.dashed += 1;
 
-            // Return velocity to zero
+    let end_dash = |mut     dash: ResMut<Dash>| { // Needs to specify dash or two mutable borrows may occur at the same time
+        //region Change dash variables
+        dash.direction = Vec2::default();
+        dash.is_dashing = false;
+        dash.trying_to_dash = false;
+        dash.dashed += 1;
+        //endregion
+    };
+
+    // Cancel the dash if the player jumps
+    if movement.jump && movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
+        end_dash(dash);
+        return;
+    }
+
+    for (mut velocity, mut jows) in query.iter_mut() {
+
+
+        if dash.duration.finished() {
+            end_dash(dash);
+
+            // Also return velocity to zero
             // Or some glitches happen
             // When you dash upwards
             velocity.x = 0.;
             velocity.y = 0.;
             return;
         }
-
 
         velocity.x = dash.direction.x * DASH_SPEED;
         velocity.y = dash.direction.y * DASH_SPEED;

@@ -14,10 +14,11 @@ impl Plugin for CommonSystems {
 
 fn move_with_velocity_system(
     mut query: Query<(&mut Transform, &Velocity)>,
-    time: Res<Time>
+    time: Res<Time>,
 ) {
     for (mut tf, vl) in query.iter_mut() {
         let mut translation: &mut Vec3 = &mut tf.translation;
+
         // Multiply by 60 and time delta in order to
         // Make the game independent of frames
         // (My monitor is 60hz so that's the default)

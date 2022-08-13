@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::{PresentMode, WindowMode};
 use crate::common_components::MainCamera;
 
 //region Import Modules
@@ -78,6 +79,23 @@ impl KeyboardControls {
 
 fn main() {
     App::new()
+        .insert_resource(WindowDescriptor {
+            width: 1280.,
+            height: 720.,
+            position: WindowPosition::Automatic,
+            resize_constraints: Default::default(),
+            scale_factor_override: None,
+            title: "Need 4 Fruits".to_string(),
+            present_mode: PresentMode::Fifo,
+            resizable: true,
+            decorations: true,
+            cursor_visible: false,
+            cursor_locked: false,
+            mode: WindowMode::Windowed,
+            transparent: false,
+            canvas: None,
+            fit_canvas_to_parent: false
+        })
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup_system)
         .add_plugin(fruit_plugin::FruitPlugin)
