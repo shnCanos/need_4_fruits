@@ -23,22 +23,30 @@ const PLAYER_SCALE: Vec3 = FRUITS_SCALE;
 const AIM_SCALE: Vec3 = FRUITS_SCALE;
 
 const FRUITS_SIZE: Vec2 = Vec2::new(1000. * FRUITS_SCALE.x, 1000. * FRUITS_SCALE.y);
-const PLAYER_SIZE: Vec2 = Vec2::new(1000. * PLAYER_SCALE.x, 1000. * PLAYER_SCALE.y);
+const PLAYER_SIZE: Vec2 = Vec2::new(600. * PLAYER_SCALE.x, 600. * PLAYER_SCALE.y);
 //endregion
 
 //region Game Consts
 const FRUIT_SPEED: f32 = 8.;
 const FRUITS_GRAVITY: f32 = 0.05;
 
+// Player variables
+// Air
 const PLAYER_SPEED: f32 = 10.;
 const PLAYER_GRAVITY: f32 = 0.6;
 const PLAYER_FAST_FALLING_SPEED: f32 = -20.;
-const PLAYER_GRAVITY_ON_WALL: f32 = 0.8;
+const MAX_PLAYER_JUMPS_MIDAIR: usize = 99;
 const PLAYER_JUMP: f32 = 15.;
+// Wall
+const PLAYER_GRAVITY_ON_WALL: f32 = 0.8;
 const PLAYER_HORIZONTAL_JUMP_WALL: f32 = 60.;
 const PLAYER_VERTICAL_JUMP_WALL: f32 = 7.;
 const JUMP_OFF_WALL_SPEED_ATTRITION: f32 = 5.;
-const MAX_PLAYER_JUMPS_MIDAIR: usize = 99;
+// Dash
+const DASH_DURATION: f32 = 0.1; // The duration of a dash in seconds
+const MAX_PLAYER_DASHES_MIDAIR: usize = 1;
+const DASH_SPEED: f32 = 50.;
+
 //endregion
 
 //endregion
@@ -51,8 +59,8 @@ struct TexturesHandles {
 }
 
 struct KeyboardControls {
-    jump: Vec<KeyCode>,
-    fast_fall: Vec<KeyCode>,
+    up: Vec<KeyCode>,
+    down: Vec<KeyCode>,
     right: Vec<KeyCode>,
     left: Vec<KeyCode>,
 }
@@ -100,15 +108,4 @@ fn setup_system(
        }
    );
     //endregion
-
-    //region Insert WindowSize resource
-    // let window = window_res.get_primary().unwrap();
-    // commands.insert_resource(
-    //     WindowSize {
-    //         width: window.width(),
-    //         height: window.height(),
-    //     }
-    // );
-    //endregion
-
 }

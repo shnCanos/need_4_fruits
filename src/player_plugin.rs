@@ -1,8 +1,8 @@
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
-use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles};
+use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED};
 use crate::common_components::{GravityAffects, Velocity};
-use crate::controls::Movement;
+use crate::controls::{Dash, Movement};
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
@@ -21,7 +21,9 @@ impl Plugin for PlayerPlugin {
             SystemSet::new()
                 .with_run_criteria(movement_wall_criteria)
                 .with_system(player_movement_wall_system)
-        );
+        )
+            .add_system(can_dash_system)
+            .add_system(dash_system);
     }
 }
 //endregion
@@ -154,7 +156,12 @@ fn player_corners_system(
 
 fn movement_air_criteria(
     wall: Query<&IsOnWall, With<Player>>,
+    dash: Res<Dash>
 ) -> ShouldRun {
+    if dash.is_dashing {
+        return ShouldRun::No;
+    }
+
     if let Some(side) = &wall.get_single().unwrap().0 {
         return match side {
             Walls::Roof => ShouldRun::Yes,
@@ -207,12 +214,15 @@ fn player_movement_air_system (
 
 }
 
-
-
 fn movement_wall_criteria(
     wall: Query<&IsOnWall, With<Player>>,
+    dash: Res<Dash>
 ) -> ShouldRun {
-    match movement_air_criteria(wall) {
+    if dash.is_dashing {
+        return ShouldRun::No;
+    }
+
+    match movement_air_criteria(wall, dash) {
         ShouldRun::No => ShouldRun::Yes,
         _ => ShouldRun::No,
     }
@@ -221,8 +231,23 @@ fn movement_wall_criteria(
 fn player_movement_wall_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
     mut movement: ResMut<Movement>,
+    mut dash: ResMut<Dash>
 ) {
     for (mut velocity, mut jows, mut wall) in query.iter_mut() {
+
+        // If the player is on a wall, don't dash
+        // And ignore the trying to dash or the player
+        // Will dash right after leaving the wall
+        if let Some(wall) = &wall.0 {
+            if !matches!(wall, &Walls::Roof) {
+                dash.is_dashing = false;
+                dash.trying_to_dash = false;
+
+                // Restart the dashes count
+                dash.dashed = 0;
+            }
+        }
+
         if !matches!(wall.0, Some(Walls::JustLeft)) {
             velocity.x = 0.;
             velocity.y = -PLAYER_GRAVITY_ON_WALL;
@@ -263,3 +288,57 @@ fn player_movement_wall_system(
     }
 }
 
+fn can_dash_system (
+    mut dash: ResMut<Dash>
+) {
+    if !dash.trying_to_dash || dash.is_dashing {
+        return; // Do nothing
+    }
+
+    // The logic that stops the player from dashing
+    // When on a wall is defined in player_movement_wall_system()
+    // Due to some bugs that arose
+
+    if dash.dashed >= MAX_PLAYER_DASHES_MIDAIR {
+        dash.trying_to_dash = false;
+        return; // Do nothing
+    }
+
+    dash.is_dashing = true;
+    dash.duration = Timer::from_seconds(DASH_DURATION, false);
+}
+
+fn dash_system(
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed), With<Player>>,
+    mut dash: ResMut<Dash>,
+    time: Res<Time>,
+) {
+    if !dash.is_dashing {
+        return; // Do nothing
+    }
+    for (mut velocity, mut jows) in query.iter_mut() {
+        if dash.duration.finished() {
+            // Rewrite the dashed variables
+            dash.is_dashing = false;
+            dash.trying_to_dash = false;
+            dash.dashed += 1;
+
+            // Return velocity to zero
+            // Or some glitches happen
+            // When you dash upwards
+            velocity.x = 0.;
+            velocity.y = 0.;
+            return;
+        }
+
+
+        velocity.x = dash.direction.x * DASH_SPEED;
+        velocity.y = dash.direction.y * DASH_SPEED;
+
+        jows.zero_the_values();
+
+        dash.apply_time(&time);
+
+
+    }
+}
