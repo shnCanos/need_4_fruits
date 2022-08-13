@@ -22,6 +22,11 @@ impl Plugin for FruitPlugin {
 //region Fruit Only Components
 #[derive(Component)]
 pub struct Fruit;
+
+#[derive(Component)]
+pub struct CutAffects {
+    pub is_cut: bool,
+}
 //endregion
 
 //region Fruit Only Resources
@@ -57,7 +62,8 @@ fn spawn_fruit_system(
         .insert(Velocity { x: 0., y: FRUIT_SPEED })
         .insert(GravityAffects { strength: FRUITS_GRAVITY, dashing: false, is_player: false })
         .insert(IsOnWall(Some(Walls::Floor))) // Fruits spawn below the window
-        .insert(Fruit);
+        .insert(Fruit)
+        .insert(CutAffects {is_cut: false});
 }
 
 fn fruit_corners_system(

@@ -1,8 +1,10 @@
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
-use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED};
+use bevy::sprite::collide_aabb::collide;
+use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED, FRUITS_SIZE};
 use crate::common_components::{GravityAffects, IsOnWall, Velocity, Walls};
 use crate::controls::{Dash, Movement};
+use crate::fruit_plugin::CutAffects;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
@@ -23,7 +25,8 @@ impl Plugin for PlayerPlugin {
                 .with_system(player_movement_wall_system)
         )
             .add_system(can_dash_system)
-            .add_system(dash_system);
+            .add_system(dash_system)
+            .add_system(fruit_collision_system);
     }
 }
 //endregion
@@ -334,4 +337,33 @@ fn dash_system(
 
 
     }
+}
+
+fn fruit_collision_system(
+    mut dash: ResMut<Dash>,
+    mut fruit_query: Query<(&Transform, &mut CutAffects)>,
+    mut player_query: Query<&Transform, With<Player>>
+) {
+    // The fruits are only cut when the player is dashing
+    if !dash.is_dashing {
+        return;
+    }
+
+    for player_tf in player_query.iter() {
+        for (fruits_tf, mut cut_affects) in fruit_query.iter_mut() {
+            let collision = collide(
+                player_tf.translation,
+                PLAYER_SIZE,
+                fruits_tf.translation,
+                FRUITS_SIZE
+            );
+
+            if let Some(_) = collision {
+                // Has been cut
+                cut_affects.is_cut = true;
+            }
+        }
+    }
+
+
 }
