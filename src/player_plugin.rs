@@ -2,7 +2,7 @@ use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED};
 use crate::common_components::{GravityAffects, Velocity};
-use crate::controls::{Dash, Movement};
+use crate::controls::{Dash, Movement, DashDirection};
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
@@ -319,6 +319,7 @@ fn dash_system(
     for (mut velocity, mut jows) in query.iter_mut() {
         if dash.duration.finished() {
             // Rewrite the dashed variables
+            dash.direction = DashDirection::default();
             dash.is_dashing = false;
             dash.trying_to_dash = false;
             dash.dashed += 1;
