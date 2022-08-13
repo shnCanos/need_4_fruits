@@ -40,36 +40,19 @@ pub struct JumpOffWallSpeed {
     x: f32,
     y: f32
 }
+
 impl JumpOffWallSpeed {
     // BTW jows stands for this struct's name
-    fn jows_attrition(&mut self) {
-        let attrition = |x: &mut f32| {
-            if x.is_sign_positive() {
-                if *x > JUMP_OFF_WALL_SPEED_ATTRITION {
-                    *x -= JUMP_OFF_WALL_SPEED_ATTRITION;
-                } else {
-                    *x = 0.;
-                }
-            }
-            if x.is_sign_negative() {
-                if *x < JUMP_OFF_WALL_SPEED_ATTRITION {
-                    *x += JUMP_OFF_WALL_SPEED_ATTRITION;
-                } else {
-                    *x = 0.;
-                }
-            }
-        };
-
-        attrition(&mut self.x);
-        attrition(&mut self.y);
+    fn apply_friction(&mut self) {
+        let friction = |x: f32| (x.abs() - JUMP_OFF_WALL_SPEED_ATTRITION).max(0.) * x.signum();
+        
+        self.x = friction(self.x);
+        self.y = friction(self.y);
     }
-    fn zero_the_values ( &mut self ) {
-        if self.x != 0. {
-            self.x = 0.;
-        }
-        if self.y != 0. {
-            self.y = 0.;
-        }
+
+    fn reset(&mut self) {
+        self.x = 0.;
+        self.y = 0.;
     }
 }
 
@@ -132,21 +115,23 @@ fn player_corners_system(
             let max_h = window.height() / 2. - PLAYER_SIZE.y / 2.;
             let mut translation = &mut tf.translation;
 
-            if translation.y <= -max_h {
-                // die();
-                translation.y = -max_h;
+            if translation.x >= max_w {
+                translation.x = max_w;
+                wall.0 = Some(Walls::Right);
             } else if translation.x <= -max_w {
                 translation.x = -max_w;
                 wall.0 = Some(Walls::Left);
-            } else if translation.y >= max_h {
-                translation.y = max_h;
-                wall.0 = Some(Walls::Roof);
-            } else if translation.x >= max_w {
-                translation.x = max_w;
-                wall.0 = Some(Walls::Right);
             }
             else {
                 wall.0 = None;
+            }
+            
+            if translation.y <= -max_h {
+                // die();
+                translation.y = -max_h;
+            } else if translation.y >= max_h {
+                translation.y = max_h;
+                wall.0 = Some(Walls::Roof);
             }
 
             // dbg!(&wall);
@@ -206,7 +191,7 @@ fn player_movement_air_system (
         velocity.y += jows.y;
 
         //region Apply attrition to JumpOffWallSpeed
-        jows.jows_attrition()
+        jows.apply_friction()
         //endregion
 
         //endregion
@@ -256,7 +241,7 @@ fn player_movement_wall_system(
             // There may be some jows left from the other wall if you travel fast enough
             // From one side to the other
             if !movement.jump {
-                jows.zero_the_values()
+                jows.reset()
             }
 
             if movement.jump {
@@ -281,7 +266,7 @@ fn player_movement_wall_system(
                 velocity.y = jows.y;
             }
         } else {
-            jows.jows_attrition();
+            jows.apply_friction();
 
             velocity.x = jows.x;
             velocity.y = jows.y;
@@ -337,7 +322,7 @@ fn dash_system(
         velocity.x = dash.direction.x * DASH_SPEED;
         velocity.y = dash.direction.y * DASH_SPEED;
 
-        jows.zero_the_values();
+        jows.reset();
 
         dash.apply_time(&time);
 

@@ -1,5 +1,5 @@
 use crate::common_components::Aim;
-use crate::{KeyboardControls, MainCamera, TexturesHandles, AIM_SCALE, DASH_DURATION};
+use crate::{KeyboardControls, MainCamera, TexturesHandles, AIM_SCALE};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 
@@ -67,7 +67,6 @@ impl Default for Dash {
             dashed: 0,
             direction: Vec2 { x: 0.0, y: 0.0 },
             duration: Timer::default(),
-            
         }
     }
 }
@@ -220,11 +219,6 @@ fn dash_direction_arrows(
     kb: Res<Input<KeyCode>>,
     mut dash: ResMut<Dash>,
 ) {
-    // You can't change the direction while you are dashing
-    // if dash.is_dashing {
-    //     return;
-    // }
-
     // You can add whatever controls you want to this list
     let controls = KeyboardControls {
         up: vec![KeyCode::Up],
@@ -234,38 +228,13 @@ fn dash_direction_arrows(
     };
 
     // Convert whether the input has just been clicked to a number
-    let to_num = |x| {
-        if KeyboardControls::is_just_pressed(&kb, x) {
-            1.
-        } else {
-            0.
-        }
-    };
+    let to_num = |x| KeyboardControls::is_just_pressed(&kb, x) as i32 as f32;
 
     // Get inputs
-    let up = Vec2 {
-        y: to_num(&controls.up),
-        x: 0.,
+    let direction = dash.direction + Vec2 {
+        x: to_num(&controls.right) - to_num(&controls.left), 
+        y: to_num(&controls.up) - to_num(&controls.down)
     };
-    let down = Vec2 {
-        y: -to_num(&controls.down),
-        x: 0.,
-    };
-    let left = Vec2 {
-        y: 0.,
-        x: -to_num(&controls.left),
-    };
-    let right = Vec2 {
-        y: 0.,
-        x: to_num(&controls.right),
-    };
-
-    // Get diagonals
-    let mut direction: Vec2 = [up, down, left, right]
-        .iter()
-        .fold(dash.direction.clone(), |direction, udlr| {
-            direction.add(udlr) // Add all the directions for instance: x: 1 + x: -1 = x: 0
-        });
     
     if !direction.is_empty() {
         dash.trying_to_dash = true;

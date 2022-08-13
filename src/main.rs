@@ -67,14 +67,10 @@ struct KeyboardControls {
 
 impl KeyboardControls {
     pub fn is_pressed(kb: &Res<Input<KeyCode>>, keys: &Vec<KeyCode>) -> bool {
-        let mut keys = keys.clone();
-        keys.retain(|x| kb.pressed(*x));
-        !keys.is_empty()
+        keys.iter().any(|x| kb.pressed(*x))
     }
     pub fn is_just_pressed(kb: &Res<Input<KeyCode>>, keys: &Vec<KeyCode>) -> bool {
-        let mut keys = keys.clone();
-        keys.retain(|x| kb.just_pressed(*x));
-        !keys.is_empty()
+        keys.iter().any(|x| kb.just_pressed(*x))
     }
 }
 

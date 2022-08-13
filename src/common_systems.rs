@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use crate::common_components::{GravityAffects, Velocity};
-use crate::controls::Movement;
-use crate::{PLAYER_GRAVITY, PLAYER_JUMP};
-use crate::player_plugin::{IsOnWall, Player};
+use crate::player_plugin::{Player};
 
 pub struct CommonSystems;
 
@@ -20,7 +18,6 @@ fn move_with_velocity_system(
 ) {
     for (mut tf, vl) in query.iter_mut() {
         let mut translation: &mut Vec3 = &mut tf.translation;
-
         // Multiply by 60 and time delta in order to
         // Make the game independent of frames
         // (My monitor is 60hz so that's the default)
