@@ -33,7 +33,7 @@ const FRUITS_GRAVITY: f32 = 0.05;
 // Player variables
 // Air
 const PLAYER_SPEED: f32 = 10.;
-const PLAYER_GRAVITY: f32 = 0.6;
+const PLAYER_GRAVITY: f32 = 0.4;
 const PLAYER_FAST_FALLING_SPEED: f32 = -20.;
 const MAX_PLAYER_JUMPS_MIDAIR: usize = 99;
 const PLAYER_JUMP: f32 = 15.;

@@ -42,6 +42,7 @@ pub struct Dash {
 }
 
 // The direction of a dash
+#[derive(Clone)]
 pub struct DashDirection {
     pub x: f32,
     pub y: f32,
@@ -227,9 +228,9 @@ fn dash_direction_arrows(
     mut dash: ResMut<Dash>,
 ) {
     // You can't change the direction while you are dashing
-    if dash.is_dashing {
-        return;
-    }
+    // if dash.is_dashing {
+    //     return;
+    // }
 
     // You can add whatever controls you want to this list
     let controls = KeyboardControls {
@@ -269,15 +270,15 @@ fn dash_direction_arrows(
     // Get diagonals
     let mut direction: DashDirection = [up, down, left, right]
         .iter()
-        .fold(DashDirection::default(), |direction, udlr| {
+        .fold(dash.direction.clone(), |direction, udlr| {
             direction.add(udlr) // Add all the directions for instance: x: 1 + x: -1 = x: 0
         });
 
-    if direction.x != 0. && direction.y != 0. {
-        direction.x *= 0.5;
-        direction.y *= 0.5;
-    }
-
+    //if direction.x != 0. && direction.y != 0. {
+    //    direction.x *= 0.5;
+    //    direction.y *= 0.5;
+    //}
+    
     if !direction.is_empty() {
         dash.trying_to_dash = true;
         dash.direction = direction;
