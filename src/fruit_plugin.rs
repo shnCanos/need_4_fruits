@@ -1,22 +1,28 @@
+use crate::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity, Walls};
+use crate::{
+    Score, TexturesHandles, DEFAULT_FRUIT_SPAWN_TIME, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE,
+    FRUIT_SPEED, FRUIT_HORIZONTAL_MARGIN,
+};
 use bevy::prelude::*;
-use bevy::utils::{HashMap};
-use crate::{DEFAULT_FRUIT_SPAWN_TIME, FRUIT_SPEED, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE, Score, TexturesHandles};
-use rand::{Rng, thread_rng};
-use crate::common_components::{GravityAffects, IsOnWall, Velocity, Walls};
-
+use rand::{thread_rng, Rng};
 
 //region Plugin Boilerplate
 pub struct FruitPlugin;
 
 impl Plugin for FruitPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_system(spawn_fruit_system)
-            .add_system(fruit_corners_system)
-            .add_system(fruits_reach_bottom_system)
-            .insert_resource(LastWallState(HashMap::new()))
-            .insert_resource(FruitSpawnerTimer( Timer::from_seconds(DEFAULT_FRUIT_SPAWN_TIME, false)))
-            .add_system(fruits_get_cut_system);
+        app.add_system(
+            spawn_fruit_system
+                .after(fruit_corners_system)
+                .after(fruits_reach_bottom_system),
+        )
+        .add_system(fruit_corners_system)
+        .add_system(fruits_reach_bottom_system)
+        .add_system(fruits_get_cut_system)
+        .insert_resource(FruitSpawnerTimer(Timer::from_seconds(
+            DEFAULT_FRUIT_SPAWN_TIME,
+            false,
+        )));
     }
 }
 //endregion
@@ -31,12 +37,7 @@ pub struct CutAffects {
 }
 //endregion
 
-//region Fruit Only Resources
-// This is a measure against the fruits despawning
-// The moment they spawn
-pub struct LastWallState(pub HashMap<Entity, Option<Walls>>);
-
-pub struct FruitSpawnerTimer( pub Timer );
+pub struct FruitSpawnerTimer(pub Timer);
 //endregion
 
 fn spawn_fruit_system(
@@ -44,11 +45,9 @@ fn spawn_fruit_system(
     window: Res<Windows>,
     textures: Res<TexturesHandles>,
     mut fruitspawner: ResMut<FruitSpawnerTimer>,
-    mut time: Res<Time>,
-    mut score: ResMut<Score> // The higher the score, the faster fruits spawn
-
+    time: Res<Time>,
+    score: ResMut<Score>, // The higher the score, the faster fruits spawn
 ) {
-
     // If the timer isn't finished, don't do anything
     if !fruitspawner.0.finished() {
         fruitspawner.0.tick(time.delta());
@@ -58,12 +57,8 @@ fn spawn_fruit_system(
     dbg!(score.0);
 
     // Respawn timer taking the score into account
-    let timer_time: f32;
-    if score.0 == 0 {
-        timer_time = DEFAULT_FRUIT_SPAWN_TIME;
-    } else {
-        timer_time = DEFAULT_FRUIT_SPAWN_TIME / (score.0 as f32);
-    }
+    // let timer_time = DEFAULT_FRUIT_SPAWN_TIME / (score.0 as f32);
+    let timer_time = (score.0 as f32 * 0.2 + 5.) / (score.0 as f32 + 5.);
     fruitspawner.0 = Timer::from_seconds(timer_time, false);
 
     // Random fruit generation
@@ -74,10 +69,10 @@ fn spawn_fruit_system(
     // Random position generation
     let window = window.get_primary().unwrap();
     let y_spawn_position = -window.height() / 2. - 50.;
-    let x_spawn_position = thread_rng().gen_range((-window.width() / 2.)..(window.width() / 2.));
+    let x_spawn_position = thread_rng().gen_range((-window.width() / 2. + FRUIT_HORIZONTAL_MARGIN)..(window.width() / 2. - FRUIT_HORIZONTAL_MARGIN));
 
-    commands.spawn_bundle(
-        SpriteBundle {
+    commands
+        .spawn_bundle(SpriteBundle {
             texture,
             transform: Transform {
                 translation: Vec3::new(x_spawn_position, y_spawn_position, 0.0),
@@ -85,20 +80,30 @@ fn spawn_fruit_system(
                 ..Default::default()
             },
             ..Default::default()
-        }
-    )
-        .insert(Velocity { x: 0., y: FRUIT_SPEED })
-        .insert(GravityAffects { strength: FRUITS_GRAVITY, dashing: false, is_player: false })
-        .insert(IsOnWall(Some(Walls::Floor))) // Fruits spawn below the window
+        })
+        .insert(Velocity {
+            x: thread_rng().gen_range(-0.5..0.5),
+            y: FRUIT_SPEED,
+        })
+        .insert(GravityAffects {
+            strength: FRUITS_GRAVITY,
+        })
+        .insert(IsOnWall(None))
         .insert(Fruit)
-        .insert(CutAffects {is_cut: false});
+        .insert(CutAffects { is_cut: false })
+        .insert(TimeAnimation {
+            callback: |tf, t| {
+                tf.rotation = Quat::from_rotation_z(t * 2.0);
+            },
+            ..Default::default()
+        });
 }
 
 fn fruit_corners_system(
     mut query: Query<(&mut Transform, &mut IsOnWall), With<Fruit>>,
     window: Res<Windows>,
 ) {
-    for (mut tf, mut is_on_wall) in query.iter_mut() {
+    for (tf, mut is_on_wall) in query.iter_mut() {
         let translation = tf.translation;
         // We add the FRUIT_SIZE to the height because we care about when the fruit leaves the screen
         let max_h = window.get_primary().unwrap().height() / 2. + FRUITS_SIZE.y / 2.;
@@ -115,33 +120,14 @@ fn fruit_corners_system(
     }
 }
 
-fn fruits_reach_bottom_system (
-    mut commands: Commands,
+fn fruits_reach_bottom_system(
+    commands: Commands,
     mut query: Query<(Entity, &IsOnWall), With<Fruit>>,
-    mut last_state: ResMut<LastWallState>,
     mut score: ResMut<Score>,
 ) {
-
-    for (entity, wall) in query.iter() {
-        // If the last wall state hasn't been registered yet
-        if !last_state.0.contains_key(&entity) {
-            last_state.0.insert(entity, wall.0);
-            return;
-        }
-
-        // If the last wall state is equal to the current state
-        // (I had to write it like this due to some weird compile
-        // Time error I couldn't get rid of)
-        let current_state = &wall.0;
-        if current_state == last_state.0.get(&entity).unwrap() {
-            return;
-        }
-
+    for (_, wall) in query.iter_mut() {
         // If the fruit hits the floor
         if let Some(_) = wall.0 {
-            // Remove it from LastWallState
-            last_state.0.remove(&entity);
-
             // Despawn all the fruits
             despawn_all_fruits(commands, query);
 
@@ -149,30 +135,46 @@ fn fruits_reach_bottom_system (
             score.0 = 0;
 
             break;
-        } else {
-            last_state.0.insert(entity, None);
         }
     }
 }
 
-fn despawn_all_fruits(
-    mut commands: Commands,
-    query: Query<(Entity, &IsOnWall), With<Fruit>>,
-) {
+// Será que agora dá? Tenta aí quando acabares de almoçar
+
+// nós temos um problmão no jogo
+// é um problema bem grande
+// a ordem de execução das coisas é totalmente aleatoria entao cada vez q vc joga o jogo, tem bugs diferentes // LOL
+// eu percebi q isso sempre acontece lol Seria fixe se pudessemos definir uma ordem de execução mas não sei se é possível.
+// Eles dizem no bevy book que prioritizam paralelismo
+
+// lembra daquele problema do shaking? aquilo acontece as vezes, e as vezes não acontece
+// hmmmmm. acho que é possível. eu tentei fazer, mas não consegui fazer funcionar do jeito q eu queria
+// eu vou pôr o link no discord
+// https://bevy-cheatbook.github.io/programming/system-order.html hmmm
+// ah ye isso eu tentei fazer isso, mas não parecia fazer muita diferença.
+
+// fun fact tho: aquele problema das frutas disaparecerem instantaneamente, é causado por essa aleatoriedade na ordem
+// Mas eu é que programei isso de propósito, isso é uma feature
+// se vc rodar o jogo várias vezes, ele as vezes não existe
+// no I mean as frutas desaparecerem assim que spawnam. as vezes não acontece.
+// ve o meu cursor
+
+fn despawn_all_fruits(mut commands: Commands, query: Query<(Entity, &IsOnWall), With<Fruit>>) {
     for (entity, _) in query.iter() {
         commands.entity(entity).despawn();
     }
 }
 
-fn fruits_get_cut_system (
+fn fruits_get_cut_system(
     mut commands: Commands,
     query: Query<(Entity, &CutAffects), With<Fruit>>,
-    mut score: ResMut<Score>
+    mut score: ResMut<Score>,
 ) {
     for (entity, cut_affects) in query.iter() {
         if !cut_affects.is_cut {
-            return;
+            continue;
         }
+
         score.0 += 1;
         commands.entity(entity).despawn();
 
