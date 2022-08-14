@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::{PresentMode, WindowMode};
 use crate::common_components::MainCamera;
 
 //region Import Modules
@@ -27,13 +28,18 @@ const PLAYER_SIZE: Vec2 = Vec2::new(600. * PLAYER_SCALE.x, 600. * PLAYER_SCALE.y
 //endregion
 
 //region Game Consts
+
+// Fruits
+// Air
 const FRUIT_SPEED: f32 = 8.;
 const FRUITS_GRAVITY: f32 = 0.05;
+// Spawn
+const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
 
 // Player variables
 // Air
 const PLAYER_SPEED: f32 = 10.;
-const PLAYER_GRAVITY: f32 = 0.6;
+const PLAYER_GRAVITY: f32 = 0.4;
 const PLAYER_FAST_FALLING_SPEED: f32 = -20.;
 const MAX_PLAYER_JUMPS_MIDAIR: usize = 99;
 const PLAYER_JUMP: f32 = 15.;
@@ -46,7 +52,6 @@ const JUMP_OFF_WALL_SPEED_ATTRITION: f32 = 5.;
 const DASH_DURATION: f32 = 0.1; // The duration of a dash in seconds
 const MAX_PLAYER_DASHES_MIDAIR: usize = 1;
 const DASH_SPEED: f32 = 50.;
-
 //endregion
 
 //endregion
@@ -65,29 +70,55 @@ struct KeyboardControls {
     left: Vec<KeyCode>,
 }
 
+pub struct Score( pub usize );
+
 impl KeyboardControls {
     pub fn is_pressed(kb: &Res<Input<KeyCode>>, keys: &Vec<KeyCode>) -> bool {
-        let mut keys = keys.clone();
-        keys.retain(|x| kb.pressed(*x));
-        !keys.is_empty()
+        keys.iter().any(|x| kb.pressed(*x))
     }
     pub fn is_just_pressed(kb: &Res<Input<KeyCode>>, keys: &Vec<KeyCode>) -> bool {
-        let mut keys = keys.clone();
-        keys.retain(|x| kb.just_pressed(*x));
-        !keys.is_empty()
+        keys.iter().any(|x| kb.just_pressed(*x))
     }
 }
 
 //endregion
 
+//region Main Plugin Definition
+struct MainPlugin;
+
+impl Plugin for MainPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            .add_startup_system(setup_system)
+            .insert_resource(Score( 0 ))
+            .add_plugin(fruit_plugin::FruitPlugin)
+            .add_plugin(common_systems::CommonSystems)
+            .add_plugin(controls::ControlsPlugin)
+            .add_plugin(player_plugin::PlayerPlugin);
+    }
+}
+//endregion
 fn main() {
     App::new()
+        .insert_resource(WindowDescriptor {
+        width: 1280.,
+        height: 720.,
+        position: WindowPosition::Automatic,
+        resize_constraints: Default::default(),
+        scale_factor_override: None,
+        title: "Need 4 Fruits".to_string(),
+        present_mode: PresentMode::Fifo,
+        resizable: true,
+        decorations: true,
+        cursor_visible: false,
+        cursor_locked: false,
+        mode: WindowMode::Windowed,
+        transparent: false,
+        canvas: None,
+        fit_canvas_to_parent: false
+    })
         .add_plugins(DefaultPlugins)
-        .add_startup_system(setup_system)
-        .add_plugin(fruit_plugin::FruitPlugin)
-        .add_plugin(common_systems::CommonSystems)
-        .add_plugin(controls::ControlsPlugin)
-        .add_plugin(player_plugin::PlayerPlugin)
+        .add_plugin(MainPlugin)
         .run();
 }
 

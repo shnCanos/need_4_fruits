@@ -1,5 +1,5 @@
 use crate::common_components::Aim;
-use crate::{KeyboardControls, MainCamera, TexturesHandles, AIM_SCALE, DASH_DURATION};
+use crate::{KeyboardControls, MainCamera, TexturesHandles, AIM_SCALE};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 
@@ -35,34 +35,28 @@ pub struct Dash {
     // Defines whether the player is dashing
     pub dashed: usize,
     // The direction in which the player is dashing
-    pub direction: DashDirection,
+    pub direction: Vec2,
 
     // Timer for the player dash
     pub duration: Timer,
 }
 
-// The direction of a dash
-pub struct DashDirection {
-    pub x: f32,
-    pub y: f32,
+trait DashDirection {
+    fn add(&self, to_add: &Vec2) -> Vec2;
+    fn is_empty(&self) -> bool;
 }
 
-impl DashDirection {
-    fn add(&self, to_add: &DashDirection) -> DashDirection {
-        DashDirection {
-            x: self.x + to_add.x,
-            y: self.y + to_add.y,
-        }
+impl DashDirection for Vec2 {
+    fn add(&self, to_add: &Vec2) -> Vec2 {
+            Vec2 {
+                x: self.x + to_add.x,
+                y: self.y + to_add.y,
+            }
     }
     fn is_empty(&self) -> bool {
         self.x == 0. && self.y == 0.
     }
-}
-
-impl Default for DashDirection {
-    fn default() -> Self {
-        DashDirection { x: 0.0, y: 0.0 }
-    }
+    
 }
 
 impl Default for Dash {
@@ -71,9 +65,8 @@ impl Default for Dash {
             trying_to_dash: false,
             is_dashing: false,
             dashed: 0,
-            direction: DashDirection { x: 0.0, y: 0.0 },
+            direction: Vec2 { x: 0.0, y: 0.0 },
             duration: Timer::default(),
-            
         }
     }
 }
@@ -226,11 +219,6 @@ fn dash_direction_arrows(
     kb: Res<Input<KeyCode>>,
     mut dash: ResMut<Dash>,
 ) {
-    // You can't change the direction while you are dashing
-    if dash.is_dashing {
-        return;
-    }
-
     // You can add whatever controls you want to this list
     let controls = KeyboardControls {
         up: vec![KeyCode::Up],
@@ -240,44 +228,14 @@ fn dash_direction_arrows(
     };
 
     // Convert whether the input has just been clicked to a number
-    let to_num = |x| {
-        if KeyboardControls::is_just_pressed(&kb, x) {
-            1.
-        } else {
-            0.
-        }
-    };
+    let to_num = |x| KeyboardControls::is_just_pressed(&kb, x) as i32 as f32;
 
     // Get inputs
-    let up = DashDirection {
-        y: to_num(&controls.up),
-        x: 0.,
+    let direction = dash.direction + Vec2 {
+        x: to_num(&controls.right) - to_num(&controls.left), 
+        y: to_num(&controls.up) - to_num(&controls.down)
     };
-    let down = DashDirection {
-        y: -to_num(&controls.down),
-        x: 0.,
-    };
-    let left = DashDirection {
-        y: 0.,
-        x: -to_num(&controls.left),
-    };
-    let right = DashDirection {
-        y: 0.,
-        x: to_num(&controls.right),
-    };
-
-    // Get diagonals
-    let mut direction: DashDirection = [up, down, left, right]
-        .iter()
-        .fold(DashDirection::default(), |direction, udlr| {
-            direction.add(udlr) // Add all the directions for instance: x: 1 + x: -1 = x: 0
-        });
-
-    if direction.x != 0. && direction.y != 0. {
-        direction.x *= 0.5;
-        direction.y *= 0.5;
-    }
-
+    
     if !direction.is_empty() {
         dash.trying_to_dash = true;
         dash.direction = direction;

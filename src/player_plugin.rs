@@ -1,8 +1,10 @@
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
-use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED};
-use crate::common_components::{GravityAffects, Velocity};
+use bevy::sprite::collide_aabb::collide;
+use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED, FRUITS_SIZE};
+use crate::common_components::{GravityAffects, IsOnWall, Velocity, Walls};
 use crate::controls::{Dash, Movement};
+use crate::fruit_plugin::CutAffects;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
@@ -23,7 +25,8 @@ impl Plugin for PlayerPlugin {
                 .with_system(player_movement_wall_system)
         )
             .add_system(can_dash_system)
-            .add_system(dash_system);
+            .add_system(dash_system)
+            .add_system(fruit_collision_system);
     }
 }
 //endregion
@@ -40,36 +43,19 @@ pub struct JumpOffWallSpeed {
     x: f32,
     y: f32
 }
+
 impl JumpOffWallSpeed {
     // BTW jows stands for this struct's name
-    fn jows_attrition(&mut self) {
-        let attrition = |x: &mut f32| {
-            if x.is_sign_positive() {
-                if *x > JUMP_OFF_WALL_SPEED_ATTRITION {
-                    *x -= JUMP_OFF_WALL_SPEED_ATTRITION;
-                } else {
-                    *x = 0.;
-                }
-            }
-            if x.is_sign_negative() {
-                if *x < JUMP_OFF_WALL_SPEED_ATTRITION {
-                    *x += JUMP_OFF_WALL_SPEED_ATTRITION;
-                } else {
-                    *x = 0.;
-                }
-            }
-        };
-
-        attrition(&mut self.x);
-        attrition(&mut self.y);
+    fn apply_friction(&mut self) {
+        let friction = |x: f32| (x.abs() - JUMP_OFF_WALL_SPEED_ATTRITION).max(0.) * x.signum();
+        
+        self.x = friction(self.x);
+        self.y = friction(self.y);
     }
-    fn zero_the_values ( &mut self ) {
-        if self.x != 0. {
-            self.x = 0.;
-        }
-        if self.y != 0. {
-            self.y = 0.;
-        }
+
+    fn reset(&mut self) {
+        self.x = 0.;
+        self.y = 0.;
     }
 }
 
@@ -84,16 +70,7 @@ impl Default for JumpOffWallSpeed {
 //endregion
 
 //region Player Only Resources
-#[derive(Debug)]
-pub enum Walls {
-    Left,
-    Right,
-    Floor,
-    Roof,
-    JustLeft, // This is to make sure the jows values are not overwritten when the player leaves a wall
-}
-#[derive(Debug, Component)]
-pub struct IsOnWall(pub Option<Walls>);
+
 //endregion
 
 fn spawn_player_system(
@@ -132,21 +109,23 @@ fn player_corners_system(
             let max_h = window.height() / 2. - PLAYER_SIZE.y / 2.;
             let mut translation = &mut tf.translation;
 
-            if translation.y <= -max_h {
-                // die();
-                translation.y = -max_h;
+            if translation.x >= max_w {
+                translation.x = max_w;
+                wall.0 = Some(Walls::Right);
             } else if translation.x <= -max_w {
                 translation.x = -max_w;
                 wall.0 = Some(Walls::Left);
-            } else if translation.y >= max_h {
-                translation.y = max_h;
-                wall.0 = Some(Walls::Roof);
-            } else if translation.x >= max_w {
-                translation.x = max_w;
-                wall.0 = Some(Walls::Right);
             }
             else {
                 wall.0 = None;
+            }
+            
+            if translation.y <= -max_h {
+                // die();
+                translation.y = -max_h;
+            } else if translation.y >= max_h {
+                translation.y = max_h;
+                wall.0 = Some(Walls::Roof);
             }
 
             // dbg!(&wall);
@@ -206,7 +185,7 @@ fn player_movement_air_system (
         velocity.y += jows.y;
 
         //region Apply attrition to JumpOffWallSpeed
-        jows.jows_attrition()
+        jows.apply_friction()
         //endregion
 
         //endregion
@@ -242,6 +221,7 @@ fn player_movement_wall_system(
             if !matches!(wall, &Walls::Roof) {
                 dash.is_dashing = false;
                 dash.trying_to_dash = false;
+                dash.direction = Vec2::default();
 
                 // Restart the dashes count
                 dash.dashed = 0;
@@ -255,7 +235,7 @@ fn player_movement_wall_system(
             // There may be some jows left from the other wall if you travel fast enough
             // From one side to the other
             if !movement.jump {
-                jows.zero_the_values()
+                jows.reset()
             }
 
             if movement.jump {
@@ -280,7 +260,7 @@ fn player_movement_wall_system(
                 velocity.y = jows.y;
             }
         } else {
-            jows.jows_attrition();
+            jows.apply_friction();
 
             velocity.x = jows.x;
             velocity.y = jows.y;
@@ -312,18 +292,35 @@ fn dash_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed), With<Player>>,
     mut dash: ResMut<Dash>,
     time: Res<Time>,
+    movement: Res<Movement>
 ) {
+
     if !dash.is_dashing {
         return; // Do nothing
     }
-    for (mut velocity, mut jows) in query.iter_mut() {
-        if dash.duration.finished() {
-            // Rewrite the dashed variables
-            dash.is_dashing = false;
-            dash.trying_to_dash = false;
-            dash.dashed += 1;
 
-            // Return velocity to zero
+    let end_dash = |mut     dash: ResMut<Dash>| { // Needs to specify dash or two mutable borrows may occur at the same time
+        //region Change dash variables
+        dash.direction = Vec2::default();
+        dash.is_dashing = false;
+        dash.trying_to_dash = false;
+        dash.dashed += 1;
+        //endregion
+    };
+
+    // Cancel the dash if the player jumps
+    if movement.jump && movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
+        end_dash(dash);
+        return;
+    }
+
+    for (mut velocity, mut jows) in query.iter_mut() {
+
+
+        if dash.duration.finished() {
+            end_dash(dash);
+
+            // Also return velocity to zero
             // Or some glitches happen
             // When you dash upwards
             velocity.x = 0.;
@@ -331,14 +328,42 @@ fn dash_system(
             return;
         }
 
-
         velocity.x = dash.direction.x * DASH_SPEED;
         velocity.y = dash.direction.y * DASH_SPEED;
 
-        jows.zero_the_values();
+        jows.reset();
 
         dash.apply_time(&time);
 
 
     }
+}
+
+fn fruit_collision_system(
+    mut dash: ResMut<Dash>,
+    mut fruit_query: Query<(&Transform, &mut CutAffects)>,
+    mut player_query: Query<&Transform, With<Player>>
+) {
+    // The fruits are only cut when the player is dashing
+    if !dash.is_dashing {
+        return;
+    }
+
+    for player_tf in player_query.iter() {
+        for (fruits_tf, mut cut_affects) in fruit_query.iter_mut() {
+            let collision = collide(
+                player_tf.translation,
+                PLAYER_SIZE * 3.,
+                fruits_tf.translation,
+                FRUITS_SIZE * 3.
+            );
+
+            if let Some(_) = collision {
+                // Has been cut
+                cut_affects.is_cut = true;
+            }
+        }
+    }
+
+
 }

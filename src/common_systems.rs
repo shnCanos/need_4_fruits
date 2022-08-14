@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use crate::common_components::{GravityAffects, Velocity};
-use crate::controls::Movement;
-use crate::{PLAYER_GRAVITY, PLAYER_JUMP};
-use crate::player_plugin::{IsOnWall, Player};
+use crate::player_plugin::{Player};
 
 pub struct CommonSystems;
 
@@ -16,7 +14,7 @@ impl Plugin for CommonSystems {
 
 fn move_with_velocity_system(
     mut query: Query<(&mut Transform, &Velocity)>,
-    time: Res<Time>
+    time: Res<Time>,
 ) {
     for (mut tf, vl) in query.iter_mut() {
         let mut translation: &mut Vec3 = &mut tf.translation;
