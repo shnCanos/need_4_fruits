@@ -37,7 +37,7 @@ const FRUIT_SPEED: f32 = 8.;
 const FRUITS_GRAVITY: f32 = 0.03; // TODO: remove that
 // Spawn
 const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
-const FRUIT_HORIZONTAL_MARGIN: f32 = 100.0;
+const FRUIT_HORIZONTAL_MARGIN: f32 = 120.0;
 
 // Player variables
 // Air
@@ -108,9 +108,9 @@ fn main() {
     .insert_resource(ClearColor(Color::rgb(0.3, 0.2, 0.4)))
 
         .insert_resource(WindowDescriptor {
-        width: 720.,
+        width: 1280.,
         height: 720.,
-        position: WindowPosition::At(Vec2 { x: 480., y: 40. }),
+        position: WindowPosition::At(Vec2 { x: 120., y: 40. }),
         resize_constraints: Default::default(),
         scale_factor_override: None,
         title: "Need 4 Fruits".to_string(),

@@ -82,7 +82,7 @@ fn spawn_fruit_system(
             ..Default::default()
         })
         .insert(Velocity {
-            x: thread_rng().gen_range(-0.5..0.5),
+            x: thread_rng().gen_range(-0.4..0.4),
             y: FRUIT_SPEED,
         })
         .insert(GravityAffects {
@@ -93,7 +93,7 @@ fn spawn_fruit_system(
         .insert(CutAffects { is_cut: false })
         .insert(TimeAnimation {
             callback: |tf, t| {
-                tf.rotation = Quat::from_rotation_z(t * 2.0);
+                tf.rotation = Quat::from_rotation_z(t * 4.0);
             },
             ..Default::default()
         });
