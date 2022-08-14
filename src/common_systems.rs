@@ -1,21 +1,28 @@
+use crate::common_components::{GravityAffects, TimeAnimation, Velocity};
 use bevy::prelude::*;
-use crate::common_components::{GravityAffects, Velocity};
-use crate::player_plugin::{Player};
 
 pub struct CommonSystems;
 
 impl Plugin for CommonSystems {
     fn build(&self, app: &mut App) {
-        app
-            .add_system(move_with_velocity_system)
-            .add_system(gravity_system);
+        app.add_system_set_to_stage(
+            CoreStage::PreUpdate,
+            SystemSet::new()
+                .with_system(move_with_velocity_system)
+                .with_system(gravity_system)
+                .with_system(process_time_animations),
+        );
     }
 }
 
-fn move_with_velocity_system(
-    mut query: Query<(&mut Transform, &Velocity)>,
-    time: Res<Time>,
-) {
+fn process_time_animations(mut query: Query<(&mut Transform, &mut TimeAnimation)>, time: Res<Time>) {
+    query.for_each_mut(|(mut tf, mut time_animation)| {
+        time_animation.time += time.delta_seconds() as f32;
+        (time_animation.callback)(&mut tf, time_animation.time);
+    });
+}
+
+fn move_with_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     for (mut tf, vl) in query.iter_mut() {
         let mut translation: &mut Vec3 = &mut tf.translation;
 
@@ -27,10 +34,8 @@ fn move_with_velocity_system(
     }
 }
 
-fn gravity_system(
-    mut query: Query<(&mut Velocity, &GravityAffects), Without<Player>>,
-) {
+fn gravity_system(mut query: Query<(&mut Velocity, &GravityAffects)>) {
     for (mut vl, ga) in query.iter_mut() {
-        vl.y -= ga.strength;
+        vl.y -= ga.strength
     }
 }

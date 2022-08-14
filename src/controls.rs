@@ -41,24 +41,6 @@ pub struct Dash {
     pub duration: Timer,
 }
 
-trait DashDirection {
-    fn add(&self, to_add: &Vec2) -> Vec2;
-    fn is_empty(&self) -> bool;
-}
-
-impl DashDirection for Vec2 {
-    fn add(&self, to_add: &Vec2) -> Vec2 {
-            Vec2 {
-                x: self.x + to_add.x,
-                y: self.y + to_add.y,
-            }
-    }
-    fn is_empty(&self) -> bool {
-        self.x == 0. && self.y == 0.
-    }
-    
-}
-
 impl Default for Dash {
     fn default() -> Self {
         Dash {
@@ -104,9 +86,13 @@ impl Plugin for ControlsPlugin {
         app.insert_resource(Movement::default())
             .insert_resource(MouseCoordinates::default())
             .insert_resource(Dash::default())
-            .add_system(cursor_system)
-            .add_system(keyboard_controls_system)
-            .add_system(dash_direction_arrows);
+            .add_system_set_to_stage(
+                CoreStage::PreUpdate,
+                SystemSet::new()
+                    .with_system(cursor_system)
+                    .with_system(keyboard_controls_system)
+                    .with_system(dash_direction_arrows),
+            );
     }
 }
 //endregion
@@ -215,10 +201,7 @@ fn cursor_system(
     }
 }
 
-fn dash_direction_arrows(
-    kb: Res<Input<KeyCode>>,
-    mut dash: ResMut<Dash>,
-) {
+fn dash_direction_arrows(kb: Res<Input<KeyCode>>, mut dash: ResMut<Dash>) {
     // You can add whatever controls you want to this list
     let controls = KeyboardControls {
         up: vec![KeyCode::Up],
@@ -231,15 +214,14 @@ fn dash_direction_arrows(
     let to_num = |x| KeyboardControls::is_just_pressed(&kb, x) as i32 as f32;
 
     // Get inputs
-    let direction = dash.direction + Vec2 {
-        x: to_num(&controls.right) - to_num(&controls.left), 
-        y: to_num(&controls.up) - to_num(&controls.down)
-    };
-    
-    if !direction.is_empty() {
+    let direction = dash.direction
+        + Vec2 {
+            x: to_num(&controls.right) - to_num(&controls.left),
+            y: to_num(&controls.up) - to_num(&controls.down),
+        };
+
+    if direction != Vec2::ZERO {
         dash.trying_to_dash = true;
         dash.direction = direction;
     }
-
-
 }

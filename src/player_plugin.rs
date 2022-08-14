@@ -1,31 +1,36 @@
+use crate::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
+use crate::controls::{Dash, Movement};
+use crate::fruit_plugin::CutAffects;
+use crate::{
+    KeyboardControls, TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE,
+    JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR,
+    PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL,
+    PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
+};
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
-use crate::{JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_GRAVITY, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, TexturesHandles, MAX_PLAYER_DASHES_MIDAIR, DASH_DURATION, DASH_SPEED, FRUITS_SIZE};
-use crate::common_components::{GravityAffects, IsOnWall, Velocity, Walls};
-use crate::controls::{Dash, Movement};
-use crate::fruit_plugin::CutAffects;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_startup_system_to_stage(StartupStage::PostStartup, spawn_player_system)
+        app.add_startup_system_to_stage(StartupStage::PostStartup, spawn_player_system)
             .add_system(player_corners_system)
             .add_system_set(
                 SystemSet::new()
                     .with_run_criteria(movement_air_criteria)
-                    .with_system(player_movement_air_system)
+                    .with_system(player_movement_air_system),
             )
-        .add_system_set(
-            SystemSet::new()
-                .with_run_criteria(movement_wall_criteria)
-                .with_system(player_movement_wall_system)
-        )
+            .add_system_set(
+                SystemSet::new()
+                    .with_run_criteria(movement_wall_criteria)
+                    .with_system(player_movement_wall_system),
+            )
             .add_system(can_dash_system)
             .add_system(dash_system)
+            .add_system(dash_aura_system)
             .add_system(fruit_collision_system);
     }
 }
@@ -41,14 +46,14 @@ pub struct Player;
 /// The [`Movement`] struct is ONLY for the controls.
 pub struct JumpOffWallSpeed {
     x: f32,
-    y: f32
+    y: f32,
 }
 
 impl JumpOffWallSpeed {
     // BTW jows stands for this struct's name
     fn apply_friction(&mut self) {
         let friction = |x: f32| (x.abs() - JUMP_OFF_WALL_SPEED_ATTRITION).max(0.) * x.signum();
-        
+
         self.x = friction(self.x);
         self.y = friction(self.y);
     }
@@ -61,51 +66,60 @@ impl JumpOffWallSpeed {
 
 impl Default for JumpOffWallSpeed {
     fn default() -> Self {
-        JumpOffWallSpeed {
-            x: 0.0,
-            y: 0.0
-        }
+        JumpOffWallSpeed { x: 0.0, y: 0.0 }
     }
 }
+
+#[derive(Component)]
+pub struct DashAura;
 //endregion
 
 //region Player Only Resources
 
 //endregion
 
-fn spawn_player_system(
-    mut commands: Commands,
-    textures: Res<TexturesHandles>,
-) {
-
-    commands.spawn_bundle(
-        SpriteBundle {
-            texture: textures.ninja.clone(),
+fn spawn_player_system(mut commands: Commands, textures: Res<TexturesHandles>) {
+    commands
+        .spawn_bundle(SpriteBundle {
             transform: Transform {
                 scale: PLAYER_SCALE,
                 ..Default::default()
             },
+            texture: textures.ninja.clone(),
             ..Default::default()
-        }
-    )
+        })
         .insert(Player)
         .insert(Velocity::default())
-        .insert(GravityAffects::default())
         .insert(IsOnWall(None))
-        .insert(JumpOffWallSpeed::default());
+        .insert(JumpOffWallSpeed::default())
+        .with_children(|parent| {
+            parent
+                .spawn_bundle(SpriteBundle {
+                    texture: textures.aura.clone(),
+                    ..Default::default()
+                })
+                .insert(TimeAnimation {
+                    callback: |tf, t| {
+                        tf.rotation = Quat::from_rotation_z(t * 3.);
+                        tf.scale = Vec3::splat(0.9 + (t * 2.5).sin() * 0.1);
+                    },
+                    ..Default::default()
+                })
+                .insert(DashAura);
+        });
 }
 
 fn player_corners_system(
-    mut query: Query<(&mut Transform, &mut IsOnWall), With<Player>>,
+    mut query: Query<(&mut Transform, &mut IsOnWall, &mut Velocity), With<Player>>,
     window: Res<Windows>,
 ) {
-    for (mut tf, mut wall) in query.iter_mut() {
-
+    for (mut tf, mut wall, mut velocity) in query.iter_mut() {
         // Make sure this doesn't start registering the wall right after the player left
         // Or some nasty bugs happen
         if !matches!(wall.0, Some(Walls::JustLeft)) {
             let window = window.get_primary().unwrap();
             let max_w = window.width() / 2. - PLAYER_SIZE.x / 2.;
+            let min_h = -(window.height() / 2. + PLAYER_SIZE.y / 2.);
             let max_h = window.height() / 2. - PLAYER_SIZE.y / 2.;
             let mut translation = &mut tf.translation;
 
@@ -115,17 +129,17 @@ fn player_corners_system(
             } else if translation.x <= -max_w {
                 translation.x = -max_w;
                 wall.0 = Some(Walls::Left);
-            }
-            else {
+            } else {
                 wall.0 = None;
             }
-            
-            if translation.y <= -max_h {
+
+            if translation.y <= min_h {
+                translation.y = min_h;
                 // die();
-                translation.y = -max_h;
-            } else if translation.y >= max_h {
+            } else if translation.y > max_h {
                 translation.y = max_h;
                 wall.0 = Some(Walls::Roof);
+                velocity.y = 0.;
             }
 
             // dbg!(&wall);
@@ -133,10 +147,7 @@ fn player_corners_system(
     }
 }
 
-fn movement_air_criteria(
-    wall: Query<&IsOnWall, With<Player>>,
-    dash: Res<Dash>
-) -> ShouldRun {
+fn movement_air_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) -> ShouldRun {
     if dash.is_dashing {
         return ShouldRun::No;
     }
@@ -151,7 +162,7 @@ fn movement_air_criteria(
     ShouldRun::Yes
 }
 
-fn player_movement_air_system (
+fn player_movement_air_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
     mut movement: ResMut<Movement>,
 ) {
@@ -190,13 +201,9 @@ fn player_movement_air_system (
 
         //endregion
     }
-
 }
 
-fn movement_wall_criteria(
-    wall: Query<&IsOnWall, With<Player>>,
-    dash: Res<Dash>
-) -> ShouldRun {
+fn movement_wall_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) -> ShouldRun {
     if dash.is_dashing {
         return ShouldRun::No;
     }
@@ -210,10 +217,9 @@ fn movement_wall_criteria(
 fn player_movement_wall_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
     mut movement: ResMut<Movement>,
-    mut dash: ResMut<Dash>
+    mut dash: ResMut<Dash>,
 ) {
     for (mut velocity, mut jows, mut wall) in query.iter_mut() {
-
         // If the player is on a wall, don't dash
         // And ignore the trying to dash or the player
         // Will dash right after leaving the wall
@@ -230,6 +236,7 @@ fn player_movement_wall_system(
 
         if !matches!(wall.0, Some(Walls::JustLeft)) {
             velocity.x = 0.;
+
             velocity.y = -PLAYER_GRAVITY_ON_WALL;
 
             // There may be some jows left from the other wall if you travel fast enough
@@ -268,9 +275,7 @@ fn player_movement_wall_system(
     }
 }
 
-fn can_dash_system (
-    mut dash: ResMut<Dash>
-) {
+fn can_dash_system(mut dash: ResMut<Dash>) {
     if !dash.trying_to_dash || dash.is_dashing {
         return; // Do nothing
     }
@@ -286,25 +291,25 @@ fn can_dash_system (
 
     dash.is_dashing = true;
     dash.duration = Timer::from_seconds(DASH_DURATION, false);
+    dash.dashed += 1;
 }
 
 fn dash_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed), With<Player>>,
     mut dash: ResMut<Dash>,
     time: Res<Time>,
-    movement: Res<Movement>
+    movement: Res<Movement>,
 ) {
-
     if !dash.is_dashing {
         return; // Do nothing
     }
 
-    let end_dash = |mut     dash: ResMut<Dash>| { // Needs to specify dash or two mutable borrows may occur at the same time
+    let end_dash = |mut dash: ResMut<Dash>| {
+        // Needs to specify dash or two mutable borrows may occur at the same time
         //region Change dash variables
         dash.direction = Vec2::default();
         dash.is_dashing = false;
         dash.trying_to_dash = false;
-        dash.dashed += 1;
         //endregion
     };
 
@@ -315,8 +320,6 @@ fn dash_system(
     }
 
     for (mut velocity, mut jows) in query.iter_mut() {
-
-
         if dash.duration.finished() {
             end_dash(dash);
 
@@ -334,15 +337,13 @@ fn dash_system(
         jows.reset();
 
         dash.apply_time(&time);
-
-
     }
 }
 
 fn fruit_collision_system(
     mut dash: ResMut<Dash>,
     mut fruit_query: Query<(&Transform, &mut CutAffects)>,
-    mut player_query: Query<&Transform, With<Player>>
+    player_query: Query<&Transform, With<Player>>,
 ) {
     // The fruits are only cut when the player is dashing
     if !dash.is_dashing {
@@ -353,17 +354,23 @@ fn fruit_collision_system(
         for (fruits_tf, mut cut_affects) in fruit_query.iter_mut() {
             let collision = collide(
                 player_tf.translation,
-                PLAYER_SIZE * 3.,
+                PLAYER_SIZE,
                 fruits_tf.translation,
-                FRUITS_SIZE * 3.
+                FRUITS_SIZE,
             );
 
             if let Some(_) = collision {
                 // Has been cut
                 cut_affects.is_cut = true;
+
+                dash.dashed = (dash.dashed as i32 - 1).max(0) as usize;
             }
         }
     }
+}
 
-
+fn dash_aura_system(mut query: Query<(&mut Visibility), With<DashAura>>, mut dash: ResMut<Dash>) {
+    query.for_each_mut(|mut visibility| {
+        visibility.is_visible = dash.dashed < MAX_PLAYER_DASHES_MIDAIR
+    });
 }

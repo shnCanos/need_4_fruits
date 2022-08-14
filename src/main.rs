@@ -8,6 +8,7 @@ mod fruit_plugin;
 mod common_systems;
 mod controls;
 mod player_plugin;
+mod ui_plugin;
 //endregion
 
 //region Consts
@@ -19,6 +20,7 @@ const FRUIT_ASSETS_PATH: [&str; 2] = [
 ];
 const NINJA_PATH: &str = "ninja_xente.png";
 const AIM_PATH: &str = "aim.png";
+const AURA_PATH: &str = "aura_thing.png";
 const FRUITS_SCALE: Vec3 = Vec3::new(0.1, 0.1, 1.0);
 const PLAYER_SCALE: Vec3 = FRUITS_SCALE;
 const AIM_SCALE: Vec3 = FRUITS_SCALE;
@@ -32,9 +34,10 @@ const PLAYER_SIZE: Vec2 = Vec2::new(600. * PLAYER_SCALE.x, 600. * PLAYER_SCALE.y
 // Fruits
 // Air
 const FRUIT_SPEED: f32 = 8.;
-const FRUITS_GRAVITY: f32 = 0.05;
+const FRUITS_GRAVITY: f32 = 0.03; // TODO: remove that
 // Spawn
 const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
+const FRUIT_HORIZONTAL_MARGIN: f32 = 100.0;
 
 // Player variables
 // Air
@@ -51,7 +54,7 @@ const JUMP_OFF_WALL_SPEED_ATTRITION: f32 = 5.;
 // Dash
 const DASH_DURATION: f32 = 0.1; // The duration of a dash in seconds
 const MAX_PLAYER_DASHES_MIDAIR: usize = 1;
-const DASH_SPEED: f32 = 50.;
+const DASH_SPEED: f32 = 40.;
 //endregion
 
 //endregion
@@ -61,6 +64,7 @@ struct TexturesHandles {
     fruits: Vec<Handle<Image>>,
     ninja: Handle<Image>,
     aim: Handle<Image>,
+    aura: Handle<Image>,
 }
 
 struct KeyboardControls {
@@ -94,16 +98,19 @@ impl Plugin for MainPlugin {
             .add_plugin(fruit_plugin::FruitPlugin)
             .add_plugin(common_systems::CommonSystems)
             .add_plugin(controls::ControlsPlugin)
-            .add_plugin(player_plugin::PlayerPlugin);
+            .add_plugin(player_plugin::PlayerPlugin)
+            .add_plugin(ui_plugin::UIPlugin);
     }
 }
 //endregion
 fn main() {
     App::new()
+    .insert_resource(ClearColor(Color::rgb(0.3, 0.2, 0.4)))
+
         .insert_resource(WindowDescriptor {
-        width: 1280.,
+        width: 720.,
         height: 720.,
-        position: WindowPosition::Automatic,
+        position: WindowPosition::At(Vec2 { x: 480., y: 40. }),
         resize_constraints: Default::default(),
         scale_factor_override: None,
         title: "Need 4 Fruits".to_string(),
@@ -136,6 +143,7 @@ fn setup_system(
            fruits: FRUIT_ASSETS_PATH.iter().map( |x| asset_server.load(*x) ).collect(),
            ninja: asset_server.load(NINJA_PATH),
            aim: asset_server.load(AIM_PATH),
+           aura: asset_server.load(AURA_PATH),
        }
    );
     //endregion
