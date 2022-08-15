@@ -13,7 +13,8 @@ impl Plugin for CommonSystems {
                 .with_system(process_time_animations)
                 .with_system(restart_game_system)
         )
-        .insert_resource(RestartGame(true));
+        .add_event::<RestartEvent>()
+        .add_startup_system(init_system);
     }
 }
 
@@ -22,6 +23,11 @@ fn process_time_animations(mut query: Query<(&mut Transform, &mut TimeAnimation)
         time_animation.time += time.delta_seconds() as f32;
         (time_animation.callback)(&mut tf, time_animation.data.clone(), time_animation.time);
     });
+}
+
+fn init_system(mut restart_events : EventWriter<RestartEvent>) {
+    // Request a restart at the start of the game
+    restart_events.send_default()
 }
 
 fn move_with_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
@@ -42,7 +48,9 @@ fn gravity_system(mut query: Query<(&mut Velocity, &GravityAffects)>) {
     }
 }
 
-pub struct RestartGame( pub bool );
+#[derive(Default)]
+pub struct RestartEvent;
+
 fn restart_game_system(
     mut query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     mut score: ResMut<Score>,
@@ -50,14 +58,16 @@ fn restart_game_system(
     despawn_fruit_query: Query<Entity, Or<(With<Fruit>, With<FruitPart>)>>,
     mut movement: ResMut<Movement>,
     mut dash: ResMut<Dash>,
-    mut restart: ResMut<RestartGame>,
     window: Res<Windows>,
+    restart_events: EventReader<RestartEvent>
 ) {
-    for (mut tf, mut vl) in query.iter_mut() {
-        if !restart.0 {
-            return;
-        }
+    if restart_events.is_empty() {
+        return; 
+    }
+    // Prevent events from staying active next frame.
+    restart_events.clear();
 
+    for (mut tf, mut vl) in query.iter_mut() {
         let window = window.get_primary().unwrap();
         let max_w = window.width() / 2. - PLAYER_SIZE.x / 2.;
         
@@ -77,11 +87,9 @@ fn restart_game_system(
         // TODO: wait does this really not work?
         // *movement.as_mut() = Movement::default();
         // *dash.as_mut() = Dash::default();
-        restart.0 = false;
 
         // Despawn all fruits
         despawn_fruit_query.for_each(|entity|commands.entity(entity).despawn());
-
 
         break; // Tell the compiler that the loop won't repeat more than once
     }

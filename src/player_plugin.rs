@@ -1,12 +1,12 @@
 use crate::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
-use crate::common_systems::RestartGame;
+use crate::common_systems::RestartEvent;
 use crate::controls::{Dash, Movement};
-use crate::fruit_plugin::{CutAffects, Fruit};
+use crate::fruit_plugin::CutAffects;
 use crate::{
-    KeyboardControls, Score, TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE,
-    JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR,
-    PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL,
-    PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
+    TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE, JUMP_OFF_WALL_SPEED_ATTRITION,
+    MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY,
+    PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE,
+    PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
 };
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
@@ -372,7 +372,7 @@ fn fruit_collision_system(
     }
 }
 
-fn dash_aura_system(mut query: Query<(&mut Visibility), With<DashAura>>, mut dash: ResMut<Dash>) {
+fn dash_aura_system(mut query: Query<&mut Visibility, With<DashAura>>, dash: ResMut<Dash>) {
     query.for_each_mut(|mut visibility| {
         visibility.is_visible = dash.dashed < MAX_PLAYER_DASHES_MIDAIR
     });
@@ -380,11 +380,12 @@ fn dash_aura_system(mut query: Query<(&mut Visibility), With<DashAura>>, mut das
 
 fn player_bottom_system(
     mut query: Query<&IsOnWall, With<Player>>,
-    mut restart: ResMut<RestartGame>,
+    mut restart_events: EventWriter<RestartEvent>,
 ) {
     for is_on_wall in query.iter_mut() {
         if matches!(is_on_wall.0, Some(Walls::Floor)) {
-            restart.0 = true;
+            // Request game to be restarted
+            restart_events.send_default();
         }
     }
 }

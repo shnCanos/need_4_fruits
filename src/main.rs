@@ -1,4 +1,3 @@
-use bevy::asset::{Asset, self};
 use bevy::prelude::*;
 use bevy::window::{PresentMode, WindowMode};
 use crate::common_components::MainCamera;
@@ -41,7 +40,7 @@ const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
 const FRUIT_HORIZONTAL_MARGIN: f32 = 120.0;
 // Fruit Part
 const NUMBER_OF_FRUIT_PIECES: i32 = 4; // Has to be a perfect square
-const MAX_FRUIT_PIECE_SPEED: f32 = 10.;
+const MAX_FRUIT_PIECE_SPEED: f32 = 8.;
 
 // Player variables
 // Air
@@ -99,36 +98,35 @@ impl Plugin for MainPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_startup_system(setup_system)
-            .insert_resource(Score( 0 ))
-            .add_plugin(fruit_plugin::FruitPlugin)
+            .insert_resource(Score(0))
             .add_plugin(common_systems::CommonSystems)
             .add_plugin(controls::ControlsPlugin)
+            .add_plugin(ui_plugin::UIPlugin)
             .add_plugin(player_plugin::PlayerPlugin)
-            .add_plugin(ui_plugin::UIPlugin);
+            .add_plugin(fruit_plugin::FruitPlugin);
     }
 }
 //endregion
 fn main() {
     App::new()
-    .insert_resource(ClearColor(Color::rgb(0.3, 0.2, 0.4)))
-
+        .insert_resource(ClearColor(Color::rgb(0.3, 0.2, 0.4)))
         .insert_resource(WindowDescriptor {
-        width: 1280.,
-        height: 720.,
-        position: WindowPosition::At(Vec2 { x: 120., y: 40. }),
-        resize_constraints: Default::default(),
-        scale_factor_override: None,
-        title: "Need 4 Fruits".to_string(),
-        present_mode: PresentMode::Fifo,
-        resizable: true,
-        decorations: true,
-        cursor_visible: false,
-        cursor_locked: false,
-        mode: WindowMode::Windowed,
-        transparent: false,
-        canvas: None,
-        fit_canvas_to_parent: false
-    })
+            width: 1280.,
+            height: 720.,
+            position: WindowPosition::At(Vec2 { x: 120., y: 40. }),
+            resize_constraints: Default::default(),
+            scale_factor_override: None,
+            title: "Need 4 Fruits".to_string(),
+            present_mode: PresentMode::Fifo,
+            resizable: true,
+            decorations: true,
+            cursor_visible: false,
+            cursor_locked: false,
+            mode: WindowMode::Windowed,
+            transparent: false,
+            canvas: None,
+            fit_canvas_to_parent: false
+        })
         .add_plugins(DefaultPlugins)
         .add_plugin(MainPlugin)
         .run();
@@ -138,13 +136,11 @@ fn setup_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    // window_res: Res<Windows>,
 ) {
     // Spawn camera
     commands.spawn_bundle(Camera2dBundle::default()).insert(MainCamera);
 
     //region Add asset handles
-
     let mut fruits_pieces_texture_atlas = Vec::new();
     FRUIT_ASSETS_PATH.iter().for_each(
         |path| {

@@ -1,5 +1,5 @@
 use crate::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity, Walls};
-use crate::common_systems::RestartGame;
+use crate::common_systems::{RestartEvent};
 use crate::{
     Score, TexturesHandles, DEFAULT_FRUIT_SPAWN_TIME, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE,
     FRUIT_HORIZONTAL_MARGIN, FRUIT_SPEED, MAX_FRUIT_PIECE_SPEED, NUMBER_OF_FRUIT_PIECES,
@@ -20,6 +20,7 @@ impl Plugin for FruitPlugin {
         .add_system(fruit_corners_system)
         .add_system(fruits_reach_bottom_system)
         .add_system(fruits_get_cut_system)
+        .add_system(fruit_part_eliminate_system)
         .insert_resource(FruitSpawnerTimer(Timer::from_seconds(
             DEFAULT_FRUIT_SPAWN_TIME,
             false,
@@ -128,17 +129,28 @@ fn fruit_corners_system(
     }
 }
 
+fn fruit_part_eliminate_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &IsOnWall), With<FruitPart>>,
+) {
+    for (entity, wall) in query.iter_mut() {
+        // If the fruit part hits the floor
+        if let Some(_) = wall.0 {
+            // Despawn the part
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 fn fruits_reach_bottom_system(
-    commands: Commands,
     mut query: Query<(Entity, &IsOnWall), With<Fruit>>,
-    mut score: ResMut<Score>,
-    mut restart: ResMut<RestartGame>,
+    mut restart_events : EventWriter<RestartEvent>
 ) {
     for (_, wall) in query.iter_mut() {
         // If the fruit hits the floor
         if let Some(_) = wall.0 {
-            // Restart game
-            restart.0 = true;
+            // Request game to be restarted
+            restart_events.send_default();
             break;
         }
     }
@@ -149,7 +161,6 @@ fn fruits_get_cut_system(
     query: Query<(Entity, &Transform, &CutAffects, &Fruit)>,
     mut score: ResMut<Score>,
     textures: Res<TexturesHandles>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
     for (entity, transform, cut_affects, fruit) in query.iter() {
         if !cut_affects.is_cut {
@@ -194,8 +205,9 @@ fn fruits_get_cut_system(
                 .insert(TimeAnimation {
                     callback: |tf, data, t| {
                         tf.rotation = Quat::from_rotation_z(t * data[0]);
+                        tf.scale = FRUITS_SCALE * 0.75 * (1. - 0.5 * t);
                     },
-                    data: vec![thread_rng().gen_range(-4.0..4.0)],
+                    data: vec![thread_rng().gen_range(2.0..4.0) * if thread_rng().gen_bool(0.5) {1.} else {-1.} ],
                     time: 0.,
                 }); // We check whether it hit the floor to despawn
         }
