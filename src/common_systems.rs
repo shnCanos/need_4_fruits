@@ -1,4 +1,4 @@
-use crate::common_components::{GravityAffects, TimeAnimation, Velocity};
+use crate::{common_components::{GravityAffects, TimeAnimation, Velocity, IsOnWall}, player_plugin::Player, Score, fruit_plugin::{Fruit, FruitPart}, controls::{Movement, Dash}};
 use bevy::prelude::*;
 
 pub struct CommonSystems;
@@ -10,8 +10,10 @@ impl Plugin for CommonSystems {
             SystemSet::new()
                 .with_system(move_with_velocity_system)
                 .with_system(gravity_system)
-                .with_system(process_time_animations),
-        );
+                .with_system(process_time_animations)
+                .with_system(restart_game_system)
+        )
+        .insert_resource(RestartGame(false));
     }
 }
 
@@ -37,5 +39,39 @@ fn move_with_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time
 fn gravity_system(mut query: Query<(&mut Velocity, &GravityAffects)>) {
     for (mut vl, ga) in query.iter_mut() {
         vl.y -= ga.strength
+    }
+}
+
+pub struct RestartGame( pub bool );
+fn restart_game_system(
+    mut query: Query<(&mut Transform, &mut Velocity), With<Player>>,
+    mut score: ResMut<Score>,
+    mut commands: Commands, 
+    despawn_fruit_query: Query<Entity, Or<(With<Fruit>, With<FruitPart>)>>,
+    mut movement: ResMut<Movement>,
+    mut dash: ResMut<Dash>,
+    mut restart: ResMut<RestartGame>,
+) {
+    for (mut tf, mut vl) in query.iter_mut() {
+        if !restart.0 {
+            return;
+        }
+
+        // Reset variables
+        score.0 = 0;
+        vl.x = 0.;
+        vl.y = 0.;
+        tf.translation.x = 0.;
+        tf.translation.y = 0.;
+        movement.jumped = 0;
+        movement.is_fast_falling = false;
+        dash.dashed = 0;
+        restart.0 = false;
+
+        // Despawn all fruits
+        despawn_fruit_query.for_each(|entity|commands.entity(entity).despawn());
+
+
+        break; // Tell the compiler that the loop won't repeat more than once
     }
 }

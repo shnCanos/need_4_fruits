@@ -1,7 +1,8 @@
 use crate::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity, Walls};
+use crate::common_systems::RestartGame;
 use crate::{
     Score, TexturesHandles, DEFAULT_FRUIT_SPAWN_TIME, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE,
-    FRUIT_SPEED, FRUIT_HORIZONTAL_MARGIN,
+    FRUIT_SPEED, FRUIT_HORIZONTAL_MARGIN, NUMBER_OF_FRUIT_PIECES, MAX_FRUIT_PIECE_SPEED,
 };
 use bevy::prelude::*;
 use rand::{thread_rng, Rng};
@@ -19,6 +20,7 @@ impl Plugin for FruitPlugin {
         .add_system(fruit_corners_system)
         .add_system(fruits_reach_bottom_system)
         .add_system(fruits_get_cut_system)
+        .add_system(fruit_part_texture_system)
         .insert_resource(FruitSpawnerTimer(Timer::from_seconds(
             DEFAULT_FRUIT_SPAWN_TIME,
             false,
@@ -29,7 +31,15 @@ impl Plugin for FruitPlugin {
 
 //region Fruit Only Components
 #[derive(Component)]
-pub struct Fruit;
+pub struct Fruit {
+    pub texture_id: usize, // The id of the fruit's texture, chosen randomly
+}
+
+#[derive(Component)]
+pub struct FruitPart {
+    pub part_id: usize, // When the fruit is blown into pieces, which piece it is
+    pub has_texture: bool
+} 
 
 #[derive(Component)]
 pub struct CutAffects {
@@ -54,7 +64,7 @@ fn spawn_fruit_system(
         return;
     }
 
-    dbg!(score.0);
+    // dbg!(score.0);
 
     // Respawn timer taking the score into account
     // let timer_time = DEFAULT_FRUIT_SPAWN_TIME / (score.0 as f32);
@@ -89,7 +99,7 @@ fn spawn_fruit_system(
             strength: FRUITS_GRAVITY,
         })
         .insert(IsOnWall(None))
-        .insert(Fruit)
+        .insert(Fruit { texture_id: index_of_fruit })
         .insert(CutAffects { is_cut: false })
         .insert(TimeAnimation {
             callback: |tf, t| {
@@ -100,7 +110,7 @@ fn spawn_fruit_system(
 }
 
 fn fruit_corners_system(
-    mut query: Query<(&mut Transform, &mut IsOnWall), With<Fruit>>,
+    mut query: Query<(&mut Transform, &mut IsOnWall), Or<(With<Fruit>, With<FruitPart>)>>,
     window: Res<Windows>,
 ) {
     for (tf, mut is_on_wall) in query.iter_mut() {
@@ -124,33 +134,26 @@ fn fruits_reach_bottom_system(
     commands: Commands,
     mut query: Query<(Entity, &IsOnWall), With<Fruit>>,
     mut score: ResMut<Score>,
+    mut restart: ResMut<RestartGame>
 ) {
     for (_, wall) in query.iter_mut() {
         // If the fruit hits the floor
         if let Some(_) = wall.0 {
-            // Despawn all the fruits
-            despawn_all_fruits(commands, query);
-
-            // Reset score
-            score.0 = 0;
-
+            // Restart game
+            restart.0 = true;
             break;
         }
     }
 }
 
-fn despawn_all_fruits(mut commands: Commands, query: Query<(Entity, &IsOnWall), With<Fruit>>) {
-    for (entity, _) in query.iter() {
-        commands.entity(entity).despawn();
-    }
-}
-
 fn fruits_get_cut_system(
     mut commands: Commands,
-    query: Query<(Entity, &CutAffects), With<Fruit>>,
+    query: Query<(Entity, &Transform, &CutAffects, &Fruit)>,
     mut score: ResMut<Score>,
+    textures: Res<TexturesHandles>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>
 ) {
-    for (entity, cut_affects) in query.iter() {
+    for (entity, transform, cut_affects, fruit) in query.iter() {
         if !cut_affects.is_cut {
             continue;
         }
@@ -159,5 +162,51 @@ fn fruits_get_cut_system(
         commands.entity(entity).despawn();
 
         //TODO! Fruits dying animation
+        // In progress....
+
+
+        for part_id in 0..(NUMBER_OF_FRUIT_PIECES as usize) {
+            let fruit_atlas = textures.fruits_pieces_texture_atlas[fruit.texture_id].clone();
+            //dbg!(&fruit_atlas);
+
+            // TODO! Math to put each piece in its place
+            let translation = transform.translation;
+
+            
+            let x_vl = thread_rng().gen_range(-MAX_FRUIT_PIECE_SPEED..MAX_FRUIT_PIECE_SPEED);
+            let y_vl = thread_rng().gen_range(0.0..MAX_FRUIT_PIECE_SPEED);
+
+
+            commands.spawn_bundle(
+                SpriteSheetBundle {
+                    texture_atlas: fruit_atlas,
+                    transform: Transform { 
+                        translation: translation,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            )
+            .insert(FruitPart {part_id, has_texture: false })// It's a part of a fruit
+            .insert(Velocity { x: x_vl, y: y_vl })// The pieces of fruit explode
+            .insert(GravityAffects {
+                strength: FRUITS_GRAVITY,
+            })// The pieces of the fruit are affected by gravity
+            .insert(IsOnWall(None));// We check whether it hit the floor to despawn
+        }
+        
+    }
+}
+
+fn fruit_part_texture_system(
+    mut query: Query<(&mut FruitPart, &mut TextureAtlasSprite), With<FruitPart>>,
+) {
+    for (mut fruit_part, mut sprite_texture) in query.iter_mut() {
+        if fruit_part.has_texture {
+            return;
+        }
+
+        sprite_texture.index = fruit_part.part_id;
+        fruit_part.has_texture = true;
     }
 }

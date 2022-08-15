@@ -1,11 +1,12 @@
 use crate::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
+use crate::common_systems::RestartGame;
 use crate::controls::{Dash, Movement};
-use crate::fruit_plugin::CutAffects;
+use crate::fruit_plugin::{CutAffects, Fruit};
 use crate::{
     KeyboardControls, TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE,
     JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR,
     PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL,
-    PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
+    PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, Score,
 };
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
@@ -31,7 +32,8 @@ impl Plugin for PlayerPlugin {
             .add_system(can_dash_system)
             .add_system(dash_system)
             .add_system(dash_aura_system)
-            .add_system(fruit_collision_system);
+            .add_system(fruit_collision_system)
+            .add_system(player_bottom_system);
     }
 }
 //endregion
@@ -134,8 +136,7 @@ fn player_corners_system(
             }
 
             if translation.y <= min_h {
-                translation.y = min_h;
-                // die();
+                wall.0 = Some(Walls::Floor);
             } else if translation.y > max_h {
                 translation.y = max_h;
                 wall.0 = Some(Walls::Roof);
@@ -249,7 +250,7 @@ fn player_movement_wall_system(
                 let signal = match &wall.0 {
                     Some(Walls::Left) => 1.,
                     Some(Walls::Right) => -1.,
-                    _ => unimplemented!(),
+                    _ => 0.,
                 };
                 jows.x = PLAYER_HORIZONTAL_JUMP_WALL * signal;
                 jows.y = PLAYER_VERTICAL_JUMP_WALL;
@@ -373,4 +374,15 @@ fn dash_aura_system(mut query: Query<(&mut Visibility), With<DashAura>>, mut das
     query.for_each_mut(|mut visibility| {
         visibility.is_visible = dash.dashed < MAX_PLAYER_DASHES_MIDAIR
     });
+}
+
+fn player_bottom_system(
+    mut query: Query<&IsOnWall, With<Player>>,
+    mut restart: ResMut<RestartGame>,
+) {
+    for is_on_wall in query.iter_mut() {
+        if matches!(is_on_wall.0, Some(Walls::Floor)) {
+            restart.0 = true;
+        }
+    }
 }

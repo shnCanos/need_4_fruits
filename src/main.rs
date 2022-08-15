@@ -38,13 +38,16 @@ const FRUITS_GRAVITY: f32 = 0.03; // TODO: remove that
 // Spawn
 const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
 const FRUIT_HORIZONTAL_MARGIN: f32 = 120.0;
+// Fruit Part
+const NUMBER_OF_FRUIT_PIECES: f32 = 4.; // Has to be a perfect square
+const MAX_FRUIT_PIECE_SPEED: f32 = 10.;
 
 // Player variables
 // Air
 const PLAYER_SPEED: f32 = 10.;
 const PLAYER_GRAVITY: f32 = 0.4;
 const PLAYER_FAST_FALLING_SPEED: f32 = -20.;
-const MAX_PLAYER_JUMPS_MIDAIR: usize = 99;
+const MAX_PLAYER_JUMPS_MIDAIR: usize = 1;
 const PLAYER_JUMP: f32 = 15.;
 // Wall
 const PLAYER_GRAVITY_ON_WALL: f32 = 0.8;
@@ -62,6 +65,7 @@ const DASH_SPEED: f32 = 40.;
 //region Global structs definitions
 struct TexturesHandles {
     fruits: Vec<Handle<Image>>,
+    fruits_pieces_texture_atlas: Vec<Handle<TextureAtlas>>,
     ninja: Handle<Image>,
     aim: Handle<Image>,
     aura: Handle<Image>,
@@ -132,15 +136,29 @@ fn main() {
 fn setup_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     // window_res: Res<Windows>,
 ) {
     // Spawn camera
     commands.spawn_bundle(Camera2dBundle::default()).insert(MainCamera);
 
     //region Add asset handles
+
+    let mut fruits_pieces_texture_atlas = Vec::new();
+    FRUIT_ASSETS_PATH.iter().for_each(
+        |path| {
+            let rows_and_collumns = NUMBER_OF_FRUIT_PIECES.sqrt() as usize;
+            let texture_handle = asset_server.load(*path);
+	        let texture_atlas = TextureAtlas::from_grid(texture_handle, FRUITS_SIZE / NUMBER_OF_FRUIT_PIECES, rows_and_collumns, rows_and_collumns);
+	        fruits_pieces_texture_atlas.push(texture_atlases.add(texture_atlas));
+
+        }
+    );
+
     commands.insert_resource(
        TexturesHandles {
            fruits: FRUIT_ASSETS_PATH.iter().map( |x| asset_server.load(*x) ).collect(),
+           fruits_pieces_texture_atlas, 
            ninja: asset_server.load(NINJA_PATH),
            aim: asset_server.load(AIM_PATH),
            aura: asset_server.load(AURA_PATH),
