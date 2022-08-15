@@ -2,7 +2,7 @@ use crate::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity
 use crate::common_systems::RestartGame;
 use crate::{
     Score, TexturesHandles, DEFAULT_FRUIT_SPAWN_TIME, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE,
-    FRUIT_SPEED, FRUIT_HORIZONTAL_MARGIN, NUMBER_OF_FRUIT_PIECES, MAX_FRUIT_PIECE_SPEED,
+    FRUIT_HORIZONTAL_MARGIN, FRUIT_SPEED, MAX_FRUIT_PIECE_SPEED, NUMBER_OF_FRUIT_PIECES,
 };
 use bevy::prelude::*;
 use rand::{thread_rng, Rng};
@@ -20,7 +20,6 @@ impl Plugin for FruitPlugin {
         .add_system(fruit_corners_system)
         .add_system(fruits_reach_bottom_system)
         .add_system(fruits_get_cut_system)
-        .add_system(fruit_part_texture_system)
         .insert_resource(FruitSpawnerTimer(Timer::from_seconds(
             DEFAULT_FRUIT_SPAWN_TIME,
             false,
@@ -36,10 +35,7 @@ pub struct Fruit {
 }
 
 #[derive(Component)]
-pub struct FruitPart {
-    pub part_id: usize, // When the fruit is blown into pieces, which piece it is
-    pub has_texture: bool
-} 
+pub struct FruitPart;
 
 #[derive(Component)]
 pub struct CutAffects {
@@ -79,7 +75,10 @@ fn spawn_fruit_system(
     // Random position generation
     let window = window.get_primary().unwrap();
     let y_spawn_position = -window.height() / 2. - 50.;
-    let x_spawn_position = thread_rng().gen_range((-window.width() / 2. + FRUIT_HORIZONTAL_MARGIN)..(window.width() / 2. - FRUIT_HORIZONTAL_MARGIN));
+    let x_spawn_position = thread_rng().gen_range(
+        (-window.width() / 2. + FRUIT_HORIZONTAL_MARGIN)
+            ..(window.width() / 2. - FRUIT_HORIZONTAL_MARGIN),
+    );
 
     commands
         .spawn_bundle(SpriteBundle {
@@ -99,14 +98,13 @@ fn spawn_fruit_system(
             strength: FRUITS_GRAVITY,
         })
         .insert(IsOnWall(None))
-        .insert(Fruit { texture_id: index_of_fruit })
+        .insert(Fruit {
+            texture_id: index_of_fruit,
+        })
         .insert(CutAffects { is_cut: false })
-        .insert(TimeAnimation {
-            callback: |tf, t| {
-                tf.rotation = Quat::from_rotation_z(t * 4.0);
-            },
-            ..Default::default()
-        });
+        .insert(TimeAnimation::from_callback(|tf, _, t| {
+            tf.rotation = Quat::from_rotation_z(t * 4.0);
+        }));
 }
 
 fn fruit_corners_system(
@@ -134,7 +132,7 @@ fn fruits_reach_bottom_system(
     commands: Commands,
     mut query: Query<(Entity, &IsOnWall), With<Fruit>>,
     mut score: ResMut<Score>,
-    mut restart: ResMut<RestartGame>
+    mut restart: ResMut<RestartGame>,
 ) {
     for (_, wall) in query.iter_mut() {
         // If the fruit hits the floor
@@ -151,7 +149,7 @@ fn fruits_get_cut_system(
     query: Query<(Entity, &Transform, &CutAffects, &Fruit)>,
     mut score: ResMut<Score>,
     textures: Res<TexturesHandles>,
-    mut texture_atlases: ResMut<Assets<TextureAtlas>>
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
 ) {
     for (entity, transform, cut_affects, fruit) in query.iter() {
         if !cut_affects.is_cut {
@@ -159,11 +157,9 @@ fn fruits_get_cut_system(
         }
 
         score.0 += 1;
-        commands.entity(entity).despawn();
 
         //TODO! Fruits dying animation
         // In progress....
-
 
         for part_id in 0..(NUMBER_OF_FRUIT_PIECES as usize) {
             let fruit_atlas = textures.fruits_pieces_texture_atlas[fruit.texture_id].clone();
@@ -172,41 +168,38 @@ fn fruits_get_cut_system(
             // TODO! Math to put each piece in its place
             let translation = transform.translation;
 
-            
             let x_vl = thread_rng().gen_range(-MAX_FRUIT_PIECE_SPEED..MAX_FRUIT_PIECE_SPEED);
             let y_vl = thread_rng().gen_range(0.0..MAX_FRUIT_PIECE_SPEED);
 
-
-            commands.spawn_bundle(
-                SpriteSheetBundle {
+            commands
+                .spawn_bundle(SpriteSheetBundle {
                     texture_atlas: fruit_atlas,
-                    transform: Transform { 
-                        translation: translation,
+                    sprite: TextureAtlasSprite {
+                        index: part_id,
+                        ..Default::default()
+                    },
+                    transform: Transform {
+                        translation,
+                        scale: FRUITS_SCALE * 0.75,
                         ..Default::default()
                     },
                     ..Default::default()
-                }
-            )
-            .insert(FruitPart {part_id, has_texture: false })// It's a part of a fruit
-            .insert(Velocity { x: x_vl, y: y_vl })// The pieces of fruit explode
-            .insert(GravityAffects {
-                strength: FRUITS_GRAVITY,
-            })// The pieces of the fruit are affected by gravity
-            .insert(IsOnWall(None));// We check whether it hit the floor to despawn
-        }
-        
-    }
-}
-
-fn fruit_part_texture_system(
-    mut query: Query<(&mut FruitPart, &mut TextureAtlasSprite), With<FruitPart>>,
-) {
-    for (mut fruit_part, mut sprite_texture) in query.iter_mut() {
-        if fruit_part.has_texture {
-            return;
+                })
+                .insert(FruitPart) // It's a part of a fruit
+                .insert(Velocity { x: x_vl, y: y_vl }) // The pieces of fruit explode
+                .insert(GravityAffects {
+                    strength: FRUITS_GRAVITY * 2.,
+                }) // The pieces of the fruit are affected by gravity
+                .insert(IsOnWall(None))
+                .insert(TimeAnimation {
+                    callback: |tf, data, t| {
+                        tf.rotation = Quat::from_rotation_z(t * data[0]);
+                    },
+                    data: vec![thread_rng().gen_range(-4.0..4.0)],
+                    time: 0.,
+                }); // We check whether it hit the floor to despawn
         }
 
-        sprite_texture.index = fruit_part.part_id;
-        fruit_part.has_texture = true;
+        commands.entity(entity).despawn();
     }
 }

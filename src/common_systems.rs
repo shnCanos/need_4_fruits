@@ -1,4 +1,4 @@
-use crate::{common_components::{GravityAffects, TimeAnimation, Velocity, IsOnWall}, player_plugin::Player, Score, fruit_plugin::{Fruit, FruitPart}, controls::{Movement, Dash}};
+use crate::{common_components::{GravityAffects, TimeAnimation, Velocity}, player_plugin::Player, Score, fruit_plugin::{Fruit, FruitPart}, controls::{Movement, Dash}, PLAYER_SIZE};
 use bevy::prelude::*;
 
 pub struct CommonSystems;
@@ -13,14 +13,14 @@ impl Plugin for CommonSystems {
                 .with_system(process_time_animations)
                 .with_system(restart_game_system)
         )
-        .insert_resource(RestartGame(false));
+        .insert_resource(RestartGame(true));
     }
 }
 
 fn process_time_animations(mut query: Query<(&mut Transform, &mut TimeAnimation)>, time: Res<Time>) {
     query.for_each_mut(|(mut tf, mut time_animation)| {
         time_animation.time += time.delta_seconds() as f32;
-        (time_animation.callback)(&mut tf, time_animation.time);
+        (time_animation.callback)(&mut tf, time_animation.data.clone(), time_animation.time);
     });
 }
 
@@ -51,21 +51,32 @@ fn restart_game_system(
     mut movement: ResMut<Movement>,
     mut dash: ResMut<Dash>,
     mut restart: ResMut<RestartGame>,
+    window: Res<Windows>,
 ) {
     for (mut tf, mut vl) in query.iter_mut() {
         if !restart.0 {
             return;
         }
 
+        let window = window.get_primary().unwrap();
+        let max_w = window.width() / 2. - PLAYER_SIZE.x / 2.;
+        
         // Reset variables
         score.0 = 0;
         vl.x = 0.;
         vl.y = 0.;
-        tf.translation.x = 0.;
+        tf.translation.x = -max_w;
         tf.translation.y = 0.;
+        movement.jump = false;
         movement.jumped = 0;
         movement.is_fast_falling = false;
         dash.dashed = 0;
+        dash.is_dashing = false;
+        dash.trying_to_dash = false;
+        dash.direction = Vec2::ZERO;
+        // TODO: wait does this really not work?
+        // *movement.as_mut() = Movement::default();
+        // *dash.as_mut() = Dash::default();
         restart.0 = false;
 
         // Despawn all fruits

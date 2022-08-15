@@ -1,3 +1,4 @@
+use bevy::asset::{Asset, self};
 use bevy::prelude::*;
 use bevy::window::{PresentMode, WindowMode};
 use crate::common_components::MainCamera;
@@ -39,7 +40,7 @@ const FRUITS_GRAVITY: f32 = 0.03; // TODO: remove that
 const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
 const FRUIT_HORIZONTAL_MARGIN: f32 = 120.0;
 // Fruit Part
-const NUMBER_OF_FRUIT_PIECES: f32 = 4.; // Has to be a perfect square
+const NUMBER_OF_FRUIT_PIECES: i32 = 4; // Has to be a perfect square
 const MAX_FRUIT_PIECE_SPEED: f32 = 10.;
 
 // Player variables
@@ -55,9 +56,9 @@ const PLAYER_HORIZONTAL_JUMP_WALL: f32 = 60.;
 const PLAYER_VERTICAL_JUMP_WALL: f32 = 7.;
 const JUMP_OFF_WALL_SPEED_ATTRITION: f32 = 5.;
 // Dash
-const DASH_DURATION: f32 = 0.1; // The duration of a dash in seconds
+const DASH_DURATION: f32 = 0.066; // The duration of a dash in seconds
 const MAX_PLAYER_DASHES_MIDAIR: usize = 1;
-const DASH_SPEED: f32 = 40.;
+const DASH_SPEED: f32 = 70.;
 //endregion
 
 //endregion
@@ -147,11 +148,10 @@ fn setup_system(
     let mut fruits_pieces_texture_atlas = Vec::new();
     FRUIT_ASSETS_PATH.iter().for_each(
         |path| {
-            let rows_and_collumns = NUMBER_OF_FRUIT_PIECES.sqrt() as usize;
+            let rows_and_columns = (NUMBER_OF_FRUIT_PIECES as f32).sqrt().ceil() as usize;
             let texture_handle = asset_server.load(*path);
-	        let texture_atlas = TextureAtlas::from_grid(texture_handle, FRUITS_SIZE / NUMBER_OF_FRUIT_PIECES, rows_and_collumns, rows_and_collumns);
+	        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::splat(1024.) / rows_and_columns as f32, rows_and_columns, rows_and_columns);
 	        fruits_pieces_texture_atlas.push(texture_atlases.add(texture_atlas));
-
         }
     );
 

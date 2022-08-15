@@ -29,16 +29,14 @@ pub struct Aim;
 
 #[derive(Component)]
 pub struct TimeAnimation {
-    pub callback: fn(&mut Transform, f32),
+    pub callback: fn(&mut Transform, Vec<f32>, f32),
+    pub data : Vec<f32>,
     pub time: f32,
 }
 
-impl Default for TimeAnimation {
-    fn default() -> Self {
-        TimeAnimation {
-            callback: |_, _| {},
-            time: 0.0,
-        }
+impl TimeAnimation {
+    pub fn from_callback(callback: fn(&mut Transform, Vec<f32>, f32)) -> Self {
+        TimeAnimation { callback, data: vec![], time: 0. }
     }
 }
 

@@ -3,10 +3,10 @@ use crate::common_systems::RestartGame;
 use crate::controls::{Dash, Movement};
 use crate::fruit_plugin::{CutAffects, Fruit};
 use crate::{
-    KeyboardControls, TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE,
+    KeyboardControls, Score, TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE,
     JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR,
     PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL,
-    PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, Score,
+    PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
 };
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
@@ -100,13 +100,10 @@ fn spawn_player_system(mut commands: Commands, textures: Res<TexturesHandles>) {
                     texture: textures.aura.clone(),
                     ..Default::default()
                 })
-                .insert(TimeAnimation {
-                    callback: |tf, t| {
-                        tf.rotation = Quat::from_rotation_z(t * 3.);
-                        tf.scale = Vec3::splat(0.9 + (t * 2.5).sin() * 0.1);
-                    },
-                    ..Default::default()
-                })
+                .insert(TimeAnimation::from_callback(|tf, _, t| {
+                    tf.rotation = Quat::from_rotation_z(t * 3.);
+                    tf.scale = Vec3::splat(0.9 + (t * 2.5).sin() * 0.1);
+                }))
                 .insert(DashAura);
         });
 }
@@ -121,7 +118,7 @@ fn player_corners_system(
         if !matches!(wall.0, Some(Walls::JustLeft)) {
             let window = window.get_primary().unwrap();
             let max_w = window.width() / 2. - PLAYER_SIZE.x / 2.;
-            let min_h = -(window.height() / 2. + PLAYER_SIZE.y / 2.);
+            let min_h = -(window.height() / 2. + PLAYER_SIZE.y);
             let max_h = window.height() / 2. - PLAYER_SIZE.y / 2.;
             let mut translation = &mut tf.translation;
 
@@ -175,14 +172,17 @@ fn player_movement_air_system(
 
         velocity.x = movement.x * PLAYER_SPEED;
 
-        if movement.jump && movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
-            velocity.y = PLAYER_JUMP;
-
-            //region Change movement variables
-            movement.jumped += 1;
+        if movement.jump {
             movement.jump = false;
-            movement.is_fast_falling = false;
-            //endregion
+
+            if movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
+                //region Change movement variables
+                movement.jumped += 1;
+                movement.is_fast_falling = false;
+                //endregion
+
+                velocity.y = PLAYER_JUMP;
+            }
         }
 
         if movement.is_fast_falling {
@@ -343,6 +343,7 @@ fn dash_system(
 
 fn fruit_collision_system(
     mut dash: ResMut<Dash>,
+    mut movement: ResMut<Movement>,
     mut fruit_query: Query<(&Transform, &mut CutAffects)>,
     player_query: Query<&Transform, With<Player>>,
 ) {
@@ -365,6 +366,7 @@ fn fruit_collision_system(
                 cut_affects.is_cut = true;
 
                 dash.dashed = (dash.dashed as i32 - 1).max(0) as usize;
+                movement.jumped = (movement.jumped as i32 - 1).max(0) as usize;
             }
         }
     }
