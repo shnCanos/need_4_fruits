@@ -1,4 +1,4 @@
-use crate::Score;
+use crate::game::Score;
 use bevy::prelude::*;
 
 //region Plugin boilerplate

@@ -1,8 +1,8 @@
-use crate::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
-use crate::common_systems::RestartEvent;
-use crate::controls::{Dash, Movement};
-use crate::fruit_plugin::CutAffects;
-use crate::{
+use crate::game::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
+use crate::game::common_systems::RestartEvent;
+use crate::game::controls::{Dash, Movement};
+use crate::game::fruit_plugin::CutAffects;
+use crate::game::{
     TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE, JUMP_OFF_WALL_SPEED_ATTRITION,
     MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY,
     PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE,

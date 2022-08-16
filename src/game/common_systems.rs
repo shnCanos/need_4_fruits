@@ -1,4 +1,4 @@
-use crate::{common_components::{GravityAffects, TimeAnimation, Velocity}, player_plugin::Player, Score, fruit_plugin::{Fruit, FruitPart}, controls::{Movement, Dash}, PLAYER_SIZE};
+use crate::game::{common_components::{GravityAffects, TimeAnimation, Velocity}, player_plugin::Player, Score, fruit_plugin::{Fruit, FruitPart}, controls::{Movement, Dash}, PLAYER_SIZE};
 use bevy::prelude::*;
 
 pub struct CommonSystems;

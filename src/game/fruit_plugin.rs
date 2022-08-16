@@ -1,6 +1,6 @@
-use crate::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity, Walls};
-use crate::common_systems::{RestartEvent};
-use crate::{
+use crate::game::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity, Walls};
+use crate::game::common_systems::{RestartEvent};
+use crate::game::{
     Score, TexturesHandles, DEFAULT_FRUIT_SPAWN_TIME, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE,
     FRUIT_HORIZONTAL_MARGIN, FRUIT_SPEED, MAX_FRUIT_PIECE_SPEED, NUMBER_OF_FRUIT_PIECES,
 };

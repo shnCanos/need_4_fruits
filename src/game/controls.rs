@@ -1,5 +1,5 @@
-use crate::common_components::Aim;
-use crate::{KeyboardControls, MainCamera, TexturesHandles, AIM_SCALE};
+use crate::game::common_components::Aim;
+use crate::game::{KeyboardControls, MainCamera, TexturesHandles, AIM_SCALE};
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 
