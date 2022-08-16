@@ -11,7 +11,6 @@ use crate::{
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
-use bevy::time::FixedTimestep;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
