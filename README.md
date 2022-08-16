@@ -2,8 +2,11 @@
 A fruit ninja like game, but with an actual ninja
 
 # TODO
+- Add _Sound FX_
 - Add controller support
-- ADD A FREAKING BACKGROUND
+- ADD A FREAKING BACKGROUND based on beatmap files (Soulspark)
+- Improve organization of beatmaps in the /assets/beatmaps/ folder
+- Adjust beatmap-based fruit spawning to actually play nicely with any beatmap (Soulspark)
 
 # DONE
 - Add collisions between ninja when dashing and the fruits (Shnawblle) [DONE]

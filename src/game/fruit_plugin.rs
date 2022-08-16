@@ -1,11 +1,18 @@
 use crate::game::common_components::{GravityAffects, IsOnWall, TimeAnimation, Velocity, Walls};
-use crate::game::common_systems::{RestartEvent};
+use crate::game::common_systems::RestartEvent;
 use crate::game::{
-    Score, TexturesHandles, DEFAULT_FRUIT_SPAWN_TIME, FRUITS_GRAVITY, FRUITS_SCALE, FRUITS_SIZE,
-    FRUIT_HORIZONTAL_MARGIN, FRUIT_SPEED, MAX_FRUIT_PIECE_SPEED, NUMBER_OF_FRUIT_PIECES,
+    Score, TexturesHandles, FRUITS_SCALE, FRUITS_SIZE, FRUIT_SPEED, MAX_FRUIT_PIECE_SPEED,
+    NUMBER_OF_FRUIT_PIECES,
 };
 use bevy::prelude::*;
 use rand::{thread_rng, Rng};
+
+use super::beatmap_plugin::{Beatmap, BeatmapPlayback};
+use super::osu_reader::OsuFileSection;
+use super::{
+    BEATMAP_MUSIC_OFFSET_TIME, EFFECTIVE_SCREEN_WIDTH_PERCENT, FRUITS_GRAVITY_FALL,
+    FRUITS_GRAVITY_HOLD, FRUITS_GRAVITY_UP,
+};
 
 //region Plugin Boilerplate
 pub struct FruitPlugin;
@@ -20,11 +27,8 @@ impl Plugin for FruitPlugin {
         .add_system(fruit_corners_system)
         .add_system(fruits_reach_bottom_system)
         .add_system(fruits_get_cut_system)
-        .add_system(fruit_part_eliminate_system)
-        .insert_resource(FruitSpawnerTimer(Timer::from_seconds(
-            DEFAULT_FRUIT_SPAWN_TIME,
-            false,
-        )));
+        .add_system(fruits_cuttable_system)
+        .add_system(fruit_part_eliminate_system);
     }
 }
 //endregion
@@ -41,71 +45,97 @@ pub struct FruitPart;
 #[derive(Component)]
 pub struct CutAffects {
     pub is_cut: bool,
+    pub can_be_cut: bool,
 }
-//endregion
-
-pub struct FruitSpawnerTimer(pub Timer);
 //endregion
 
 fn spawn_fruit_system(
     mut commands: Commands,
+    mut beatmap_playback: ResMut<BeatmapPlayback>,
     window: Res<Windows>,
     textures: Res<TexturesHandles>,
-    mut fruitspawner: ResMut<FruitSpawnerTimer>,
+    beatmap: Res<Beatmap>,
     time: Res<Time>,
-    score: ResMut<Score>, // The higher the score, the faster fruits spawn
 ) {
-    // If the timer isn't finished, don't do anything
-    if !fruitspawner.0.finished() {
-        fruitspawner.0.tick(time.delta());
+    // Don't spawn any fruits until the beatmap has started
+    if !beatmap_playback.beatmap_started {
         return;
     }
 
-    // dbg!(score.0);
+    // Get the amount of milliseconds since the beatmap started playing
+    let current_millis = (beatmap_playback
+        .play_timer
+        .tick(time.delta())
+        .elapsed_secs()
+        * 1000.) as u32;
 
-    // Respawn timer taking the score into account
-    // let timer_time = DEFAULT_FRUIT_SPAWN_TIME / (score.0 as f32);
-    let timer_time = (score.0 as f32 * 0.2 + 5.) / (score.0 as f32 + 5.);
-    fruitspawner.0 = Timer::from_seconds(timer_time, false);
+    // Get the vector of HitObjects from the Beatmap data
+    if let Some(section) = beatmap.0.get("[HitObjects]") {
+        if let OsuFileSection::HitObjects(hit_objects) = section {
+            // Get the current HitObject from the vector of HitObjects
+            let hit_object = &hit_objects[beatmap_playback.current_hit_object_id];
 
-    // Random fruit generation
-    let number_of_fruits = textures.fruits.len();
-    let index_of_fruit = thread_rng().gen_range(0..number_of_fruits);
-    let texture = textures.fruits[index_of_fruit].clone();
+            // Return if it's still not time to spawn the fruit
+            if current_millis < hit_object.time {
+                return;
+            }
 
-    // Random position generation
-    let window = window.get_primary().unwrap();
-    let y_spawn_position = -window.height() / 2. - 50.;
-    let x_spawn_position = thread_rng().gen_range(
-        (-window.width() / 2. + FRUIT_HORIZONTAL_MARGIN)
-            ..(window.width() / 2. - FRUIT_HORIZONTAL_MARGIN),
-    );
+            beatmap_playback.current_hit_object_id += 1;
 
-    commands
-        .spawn_bundle(SpriteBundle {
-            texture,
-            transform: Transform {
-                translation: Vec3::new(x_spawn_position, y_spawn_position, 0.0),
-                scale: FRUITS_SCALE,
-                ..Default::default()
-            },
-            ..Default::default()
-        })
-        .insert(Velocity {
-            x: thread_rng().gen_range(-0.4..0.4),
-            y: FRUIT_SPEED,
-        })
-        .insert(GravityAffects {
-            strength: FRUITS_GRAVITY,
-        })
-        .insert(IsOnWall(None))
-        .insert(Fruit {
-            texture_id: index_of_fruit,
-        })
-        .insert(CutAffects { is_cut: false })
-        .insert(TimeAnimation::from_callback(|tf, _, t| {
-            tf.rotation = Quat::from_rotation_z(t * 4.0);
-        }));
+            // Random fruit generation
+            let number_of_fruits = textures.fruits.len();
+            let index_of_fruit = thread_rng().gen_range(0..number_of_fruits);
+            let texture = textures.fruits[index_of_fruit].clone();
+
+            // Random position generation
+            let window = window.get_primary().unwrap();
+            let effective_width = window.width() * EFFECTIVE_SCREEN_WIDTH_PERCENT;
+            let y_spawn_position = -window.height() / 2. - 50.;
+            let x_spawn_position =
+                (hit_object.position.x / 640. * effective_width) - effective_width / 2.;
+
+            // Calculations for the fruit speed (gone sorta wrong)
+            // let y_factor = hit_object.position.y / 480. * 5.;
+            // let y_peak_position = (0.5 - hit_object.position.y / 480.) * effective_height;
+            // let effective_height = window.height() * EFFECTIVE_SCREEN_WIDTH_PERCENT;
+
+            // ut = s - 1/2at^2
+            // u = (s - 1/2at^2) / t
+            // u = s/t - 1/2at
+            // let time_to_peak = 0.7 * 30.;
+            // let fruit_speed = (y_peak_position - y_spawn_position) / time_to_peak + 0.5 * FRUITS_GRAVITY_UP * time_to_peak;
+
+            commands
+                .spawn_bundle(SpriteBundle {
+                    texture,
+                    transform: Transform {
+                        translation: Vec3::new(x_spawn_position, y_spawn_position, 0.0),
+                        scale: FRUITS_SCALE,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .insert(Velocity {
+                    x: thread_rng().gen_range(-0.4..0.4),
+                    y: FRUIT_SPEED,
+                })
+                .insert(GravityAffects {
+                    strength: FRUITS_GRAVITY_UP,
+                })
+                .insert(IsOnWall(None))
+                .insert(Fruit {
+                    texture_id: index_of_fruit,
+                })
+                .insert(CutAffects {
+                    is_cut: false,
+                    can_be_cut: false,
+                })
+                .insert(TimeAnimation::from_callback(|tf, _, t| {
+                    tf.rotation = Quat::from_rotation_z(t * 4.0);
+                    tf.scale = FRUITS_SCALE * (1. / BEATMAP_MUSIC_OFFSET_TIME * t).min(1.);
+                }));
+        }
+    }
 }
 
 fn fruit_corners_system(
@@ -144,7 +174,7 @@ fn fruit_part_eliminate_system(
 
 fn fruits_reach_bottom_system(
     mut query: Query<(Entity, &IsOnWall), With<Fruit>>,
-    mut restart_events : EventWriter<RestartEvent>
+    mut restart_events: EventWriter<RestartEvent>,
 ) {
     for (_, wall) in query.iter_mut() {
         // If the fruit hits the floor
@@ -169,14 +199,10 @@ fn fruits_get_cut_system(
 
         score.0 += 1;
 
-        //TODO! Fruits dying animation
-        // In progress....
-
+        // Spawn as many Fruit Parts as in NUMBER_OF_FRUIT_PIECES
         for part_id in 0..(NUMBER_OF_FRUIT_PIECES as usize) {
             let fruit_atlas = textures.fruits_pieces_texture_atlas[fruit.texture_id].clone();
-            //dbg!(&fruit_atlas);
 
-            // TODO! Math to put each piece in its place
             let translation = transform.translation;
 
             let x_vl = thread_rng().gen_range(-MAX_FRUIT_PIECE_SPEED..MAX_FRUIT_PIECE_SPEED);
@@ -199,7 +225,7 @@ fn fruits_get_cut_system(
                 .insert(FruitPart) // It's a part of a fruit
                 .insert(Velocity { x: x_vl, y: y_vl }) // The pieces of fruit explode
                 .insert(GravityAffects {
-                    strength: FRUITS_GRAVITY * 2.,
+                    strength: FRUITS_GRAVITY_FALL * 2.,
                 }) // The pieces of the fruit are affected by gravity
                 .insert(IsOnWall(None))
                 .insert(TimeAnimation {
@@ -207,11 +233,35 @@ fn fruits_get_cut_system(
                         tf.rotation = Quat::from_rotation_z(t * data[0]);
                         tf.scale = FRUITS_SCALE * 0.75 * (1. - 0.5 * t);
                     },
-                    data: vec![thread_rng().gen_range(2.0..4.0) * if thread_rng().gen_bool(0.5) {1.} else {-1.} ],
+                    data: vec![
+                        thread_rng().gen_range(2.0..4.0)
+                            * if thread_rng().gen_bool(0.5) { 1. } else { -1. },
+                    ],
                     time: 0.,
                 }); // We check whether it hit the floor to despawn
         }
 
         commands.entity(entity).despawn();
+    }
+}
+
+fn fruits_cuttable_system(
+    mut query: Query<(&Velocity, &mut Sprite, &mut CutAffects, &mut GravityAffects), With<Fruit>>,
+) {
+    for (velocity, mut sprite, mut cut_affects, mut gravity_affects) in query.iter_mut() {
+        cut_affects.can_be_cut = velocity.y <= 2.;
+        if velocity.y < 0. {
+            gravity_affects.strength = FRUITS_GRAVITY_FALL;
+        } else if cut_affects.can_be_cut {
+            gravity_affects.strength = FRUITS_GRAVITY_HOLD;
+        } else {
+            gravity_affects.strength = FRUITS_GRAVITY_UP;
+        }
+
+        sprite.color = if cut_affects.can_be_cut {
+            Color::WHITE
+        } else {
+            Color::rgba(0.7, 0.7, 0.7, 0.5)
+        };
     }
 }

@@ -363,6 +363,10 @@ fn fruit_collision_system(
 
     for player_tf in player_query.iter() {
         for (fruits_tf, mut cut_affects) in fruit_query.iter_mut() {
+            if !cut_affects.can_be_cut {
+                continue;
+            }
+
             let collision = collide(
                 player_tf.translation,
                 PLAYER_SIZE,

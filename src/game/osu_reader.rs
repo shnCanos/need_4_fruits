@@ -1,65 +1,52 @@
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{write, File};
 use std::io::Read;
 
-#[derive(Debug)]
-pub struct Unknown {
-    time: i32,
-    position: (f32, f32),
-}
+use bevy::prelude::Vec2;
 
 #[derive(Debug)]
-pub enum OsuFileInfo {
-    Info(String),
-    Unknown(Unknown),
+pub enum OsuFileSection {
+    KeyValueMap(HashMap<String, String>),
+    HitObjects(Vec<HitObject>),
+    None,
 }
 
-fn hitobject_processing(string: &str) -> OsuFileInfo
-{
-    let mut information = vec![];
-    let mut getter = String::new();
-    for char in string.chars() {
-        
-        if char == ',' {
-            information.push(getter.clone());
-            getter = String::new();
-            continue
-        }
-
-        getter += &char.to_string();
-
-    }
-    information.push(getter.clone());
-    
-    // Screw it, I am going to return all of them as unknown
-    return OsuFileInfo::Unknown(
-        Unknown {
-            time: information[2].parse().unwrap(),
-            position: (information[0].parse().unwrap(), information[1].parse().unwrap()),
-        }
-    )
-
+#[derive(Debug)]
+pub struct HitObject {
+    pub hit_type: usize,
+    pub time: u32,
+    pub position: Vec2,
 }
 
-fn get_names_from_vec(vec: &Vec<String>, name: &str) -> usize {
-    match vec.iter().position(|x| *x == name) {
-        Some(s) => s,
-        None => panic!("{} was not found in the file!", name)
-    }
+fn hitobject_processing(line: &str) -> HitObject {
+    // Split line into its parts
+    let information: Vec<&str> = line.split(',').collect();
+
+    // Potential alternative: creating new variants of the OsuFileInfo Enum for each HitObject type?
+    return HitObject {
+        position: Vec2 {
+            x: information[0].parse().unwrap(),
+            y: information[1].parse().unwrap(),
+        },
+        time: information[2].parse().unwrap(),
+        hit_type: information[3].parse().unwrap(),
+    };
 }
 
-fn json_like_key_value_get(to_get: &str) -> Option<(String, String)> {
-    let to_get = to_get.replace(" ", "");
-
-    if !to_get.contains(":") {
-        return None
+fn json_like_key_value_get(line: &str) -> Option<(String, String)> {
+    // Ignore lines that do not follow the 'Json-like' key:value pattern
+    if !line.contains(':') {
+        return None;
     }
 
-    let to_get = to_get.split(":").collect::<Vec<&str>>();
-    Some((to_get[0].to_string() ,to_get[1].to_string()))
+    // Remove potential trailing whitespace after ':'
+    let line = line.replace(": ", ":");
+    // Then split line into the parts before and after the ':'
+    let parts: Vec<&str> = line.split(':').collect();
+    Some((parts[0].to_string(), parts[1].to_string()))
 }
 
-pub fn open_osu(path: &str) {
+pub fn open_osu(path: &str) -> HashMap<String, OsuFileSection> {
     let mut source = String::new();
 
     File::open(path)
@@ -68,50 +55,44 @@ pub fn open_osu(path: &str) {
         .unwrap();
 
     source.retain(|x| x != '\r');
+    let source_lines: Vec<&str> = source.split('\n').collect();
 
-    let source = source.split("\n").collect::<Vec<&str>>();
+    let mut sections: HashMap<String, OsuFileSection> = HashMap::new();
+    // Each time a new [Section] line is met, a new HashMap will be assigned to current_section_map
+    let mut current_section = &mut OsuFileSection::None;
 
-    let mut values_map: HashMap<&str, HashMap<String, OsuFileInfo>>  = HashMap::new();
-    let mut indexes = vec![];
-
-    let mut index = 0;
-    for value in source.iter() {
-        if value.contains('[') {
-            values_map.insert(value, HashMap::new());
-            values_map.get_mut(value).unwrap().insert("SourceLine - 1".to_string(), OsuFileInfo::Info(index.to_string()));
-            indexes.push(index.to_string());
-        }
-        index += 1;
-    }
-
-    for map in values_map.values_mut() {
-        let index_struct  = map.get("SourceLine - 1").unwrap().clone();
-
-        let mut index = String::new();
-        if let OsuFileInfo::Info(s) = index_struct {
-            index = s.clone();
+    for line in source_lines.iter() {
+        if line.is_empty() {
+            continue;
         }
 
-        let index_vec_pos = get_names_from_vec(&indexes, &index);
-
-        let mut last_line = source.len()-1;
-
-        if index_vec_pos != indexes.len()-1 {
-            last_line = indexes.get(index_vec_pos+1).unwrap().parse().unwrap();
-        }
-
-        let mut hitcount = 0;
-        for line in &source[index.parse::<usize>().unwrap()+1..last_line] {
-            if indexes[indexes.len()-1] == index {
-                map.insert(hitcount.to_string(), hitobject_processing(line));
-                hitcount += 1;
-            } else {
-                match json_like_key_value_get(line) {
-                    Some(s) => map.insert(s.0, OsuFileInfo::Info(s.1)),
-                    None => None
-                };
+        // If line starts with '[', this is a Section Title
+        // Otherwise, this line contains data for the current Section
+        if line.starts_with('[') {
+            // Create a new entry in the section map for that Section Title, with the type in the OsuFileSection Enum determined by the title name
+            current_section = sections.entry(line.to_string()).or_insert(match *line {
+                "[HitObjects]" => OsuFileSection::HitObjects(vec![]),
+                _ => OsuFileSection::KeyValueMap(HashMap::new()),
+            });
+        } else {
+            match current_section {
+                OsuFileSection::HitObjects(section_data) => {
+                    section_data.push(hitobject_processing(line))
+                }
+                OsuFileSection::KeyValueMap(section_map) => {
+                    match json_like_key_value_get(line) {
+                        Some(s) => section_map.insert(s.0, s.1),
+                        None => None,
+                    };
+                }
+                _ => {}
             }
         }
     }
 
+    // DEBUG: Write all the parsed data into an output file
+    let output_path = path.replace(".osu", "_output.txt");
+    write(output_path, format!("{sections:#?}")).unwrap();
+
+    sections
 }

@@ -1,4 +1,5 @@
 use bevy::{prelude::*, window::{PresentMode, WindowMode}};
+use bevy_kira_audio::AudioPlugin;
 
 mod game;
 
@@ -23,6 +24,7 @@ fn main() {
             fit_canvas_to_parent: false
         })
         .add_plugins(DefaultPlugins)
+        .add_plugin(AudioPlugin)
         .add_plugin(game::MainPlugin)
         .run();
 }

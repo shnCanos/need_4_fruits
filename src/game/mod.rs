@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::window::{PresentMode, WindowMode};
 use crate::game::common_components::MainCamera;
 
 //region Import Modules
@@ -9,6 +8,8 @@ mod common_systems;
 mod controls;
 mod player_plugin;
 mod ui_plugin;
+mod osu_reader;
+mod beatmap_plugin;
 //endregion
 
 //region Consts
@@ -33,11 +34,16 @@ const PLAYER_SIZE: Vec2 = Vec2::new(600. * PLAYER_SCALE.x, 600. * PLAYER_SCALE.y
 
 // Fruits
 // Air
-const FRUIT_SPEED: f32 = 8.;
-const FRUITS_GRAVITY: f32 = 0.03; // TODO: remove that
-// Spawn
-const DEFAULT_FRUIT_SPAWN_TIME: f32 = 1.;
-const FRUIT_HORIZONTAL_MARGIN: f32 = 120.0;
+const FRUIT_SPEED: f32 = 25.;
+const FRUITS_GRAVITY_UP: f32 = 0.25;
+const FRUITS_GRAVITY_HOLD: f32 = 0.07;
+const FRUITS_GRAVITY_FALL: f32 = 0.5;
+// Beatmap
+const BEATMAP_INITIAL_WAIT_TIME: f32 = 0.5;
+const BEATMAP_MUSIC_OFFSET_TIME: f32 = 0.7;
+const BEATMAP_FILE_NAME : &str = "beatMARIO - Night of Knights (alacat) [Hard].osu";
+/// How much of the screen's horizontal width is spawnable for fruits (0.0-1.0)
+const EFFECTIVE_SCREEN_WIDTH_PERCENT: f32 = 0.9;
 // Fruit Part
 const NUMBER_OF_FRUIT_PIECES: i32 = 4; // Has to be a perfect square
 const MAX_FRUIT_PIECE_SPEED: f32 = 8.;
@@ -102,6 +108,7 @@ impl Plugin for MainPlugin {
             .add_plugin(common_systems::CommonSystems)
             .add_plugin(controls::ControlsPlugin)
             .add_plugin(ui_plugin::UIPlugin)
+            .add_plugin(beatmap_plugin::BeatmapPlugin)
             .add_plugin(player_plugin::PlayerPlugin)
             .add_plugin(fruit_plugin::FruitPlugin);
     }
