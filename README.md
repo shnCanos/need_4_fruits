@@ -3,9 +3,7 @@ A fruit ninja like game, but with an actual ninja
 
 # TODO
 - Add controller support
-- Add a _**wonky**_ fruit falling when the fruit is cut (shnCanos)
 - ADD A FREAKING BACKGROUND
-- Normalize dash's vector (Soulspark)
 
 # DONE
 - Add collisions between ninja when dashing and the fruits (Shnawblle) [DONE]
@@ -15,3 +13,5 @@ A fruit ninja like game, but with an actual ninja
 - Use Vec2 instead of DashDirection (Shnawblle)  [DONE]
 - Enable dash cancelling by jumping (Shnawblle) [DONE]
 - Make a system to tell when the fruits have fallen (a more basic player_corner_system() clone) (Shnawblle) [DONE]
+- Add a _**wonky**_ fruit falling when the fruit is cut (shnCanos) [DONE]
+- Normalize dash's vector (Soulspark) [DONE]

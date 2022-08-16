@@ -11,6 +11,7 @@ use crate::{
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
+use bevy::time::FixedTimestep;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
@@ -139,8 +140,6 @@ fn player_corners_system(
                 wall.0 = Some(Walls::Roof);
                 velocity.y = 0.;
             }
-
-            // dbg!(&wall);
         }
     }
 }
@@ -149,7 +148,7 @@ fn movement_air_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) 
     if dash.is_dashing {
         return ShouldRun::No;
     }
-
+    
     if let Some(side) = &wall.get_single().unwrap().0 {
         return match side {
             Walls::Roof => ShouldRun::Yes,
@@ -161,16 +160,22 @@ fn movement_air_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) 
 }
 
 fn player_movement_air_system(
-    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
     mut movement: ResMut<Movement>,
 ) {
-    for (mut velocity, mut jows, mut wall) in query.iter_mut() {
+    for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
         // Make sure the player keeps the momentum until it is actually in the air
         if let Some(Walls::JustLeft) = wall.0 {
             wall.0 = None;
         }
 
         velocity.x = movement.x * PLAYER_SPEED;
+
+        if movement.x > 0. {
+            sprite.flip_x = false;
+        } else if movement.x < 0. {
+            sprite.flip_x = true;
+        }
 
         if movement.jump {
             movement.jump = false;
@@ -196,10 +201,7 @@ fn player_movement_air_system(
         velocity.x += jows.x;
         velocity.y += jows.y;
 
-        //region Apply attrition to JumpOffWallSpeed
-        jows.apply_friction()
-        //endregion
-
+        jows.apply_friction();
         //endregion
     }
 }
@@ -216,11 +218,11 @@ fn movement_wall_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>)
 }
 
 fn player_movement_wall_system(
-    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
     mut movement: ResMut<Movement>,
     mut dash: ResMut<Dash>,
 ) {
-    for (mut velocity, mut jows, mut wall) in query.iter_mut() {
+    for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
         // If the player is on a wall, don't dash
         // And ignore the trying to dash or the player
         // Will dash right after leaving the wall
@@ -239,6 +241,12 @@ fn player_movement_wall_system(
             velocity.x = 0.;
 
             velocity.y = -PLAYER_GRAVITY_ON_WALL;
+
+            if matches!(wall.0, Some(Walls::Left)) {
+                sprite.flip_x = false;
+            } else if matches!(wall.0, Some(Walls::Right)) {
+                sprite.flip_x = true;
+            }
 
             // There may be some jows left from the other wall if you travel fast enough
             // From one side to the other
@@ -281,10 +289,6 @@ fn can_dash_system(mut dash: ResMut<Dash>) {
         return; // Do nothing
     }
 
-    // The logic that stops the player from dashing
-    // When on a wall is defined in player_movement_wall_system()
-    // Due to some bugs that arose
-
     if dash.dashed >= MAX_PLAYER_DASHES_MIDAIR {
         dash.trying_to_dash = false;
         return; // Do nothing
@@ -296,7 +300,7 @@ fn can_dash_system(mut dash: ResMut<Dash>) {
 }
 
 fn dash_system(
-    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut Sprite), With<Player>>,
     mut dash: ResMut<Dash>,
     time: Res<Time>,
     movement: Res<Movement>,
@@ -320,7 +324,7 @@ fn dash_system(
         return;
     }
 
-    for (mut velocity, mut jows) in query.iter_mut() {
+    for (mut velocity, mut jows, mut sprite) in query.iter_mut() {
         if dash.duration.finished() {
             end_dash(dash);
 
@@ -332,8 +336,14 @@ fn dash_system(
             return;
         }
 
-        velocity.x = dash.direction.x * DASH_SPEED;
-        velocity.y = dash.direction.y * DASH_SPEED;
+        if dash.direction.x > 0. {
+            sprite.flip_x = false;
+        } else if dash.direction.x < 0. {
+            sprite.flip_x = true;
+        }
+
+        let dash_velocity = dash.direction.normalize() * DASH_SPEED;
+        (velocity.x, velocity.y) = (dash_velocity.x, dash_velocity.y);
 
         jows.reset();
 
