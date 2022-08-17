@@ -1,6 +1,4 @@
 use bevy::prelude::*;
-use crate::PLAYER_GRAVITY;
-
 
 //region Movement
 #[derive(Component, Debug)]
@@ -8,6 +6,7 @@ pub struct Velocity {
     pub x: f32,
     pub y: f32,
 }
+
 impl Default for Velocity {
     fn default() -> Self {
         Velocity { x: 0.0, y: 0.0 }
@@ -17,13 +16,6 @@ impl Default for Velocity {
 #[derive(Component)]
 pub struct GravityAffects {
     pub strength: f32,
-    pub dashing: bool, // When the player is dashing, gravity doesn't affect it
-    pub is_player: bool, // Player gravity works differently
-}
-impl Default for GravityAffects {
-    fn default() -> Self {
-        GravityAffects { strength: PLAYER_GRAVITY, dashing: false, is_player: true }
-    }
 }
 //endregion
 
@@ -34,6 +26,19 @@ pub struct MainCamera;
 #[derive(Component)]
 pub struct Aim;
 //endregion
+
+#[derive(Component)]
+pub struct TimeAnimation {
+    pub callback: fn(&mut Transform, Vec<f32>, f32),
+    pub data : Vec<f32>,
+    pub time: f32,
+}
+
+impl TimeAnimation {
+    pub fn from_callback(callback: fn(&mut Transform, Vec<f32>, f32)) -> Self {
+        TimeAnimation { callback, data: vec![], time: 0. }
+    }
+}
 
 //region IsOnWall
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -48,4 +53,5 @@ pub enum Walls {
 }
 #[derive(Debug, Component)]
 pub struct IsOnWall(pub Option<Walls>);
+
 //endregion
