@@ -12,6 +12,9 @@ use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
 
+use super::GameSettings;
+use super::fruit_plugin::Fruit;
+
 //region Plugin boilerplate
 pub struct PlayerPlugin;
 
@@ -310,30 +313,20 @@ fn dash_system(
         return; // Do nothing
     }
 
-    let end_dash = |mut dash: ResMut<Dash>| {
-        // Needs to specify dash or two mutable borrows may occur at the same time
-        //region Change dash variables
-        dash.direction = Vec2::default();
-        dash.is_dashing = false;
-        dash.trying_to_dash = false;
-        //endregion
-    };
-
-    // Cancel the dash if the player jumps
-    if movement.jump && movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
-        end_dash(dash);
-        return;
-    }
-
     for (mut velocity, mut jows, mut sprite) in query.iter_mut() {
+        // Cancel the dash if the player jumps
+        if movement.jump && movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
+            end_dash(dash, &mut velocity);
+            return;
+        }
+
         if dash.duration.finished() {
-            end_dash(dash);
+            end_dash(dash, &mut velocity);
 
             // Also return velocity to zero
             // Or some glitches happen
             // When you dash upwards
-            velocity.x = 0.;
-            velocity.y = 0.;
+            (velocity.x, velocity.y) = (0., 0.);
             return;
         }
 
@@ -352,18 +345,30 @@ fn dash_system(
     }
 }
 
+fn end_dash(mut dash: ResMut<Dash>, mut velocity : &mut Velocity) {
+    // Needs to specify dash or two mutable borrows may occur at the same time
+    //region Change dash variables
+    dash.direction = Vec2::default();
+    dash.is_dashing = false;
+    dash.trying_to_dash = false;
+
+    (velocity.x, velocity.y) = (0., 5.);
+    //endregion
+}
+
 fn fruit_collision_system(
-    mut dash: ResMut<Dash>,
+    mut fruit_query: Query<(&Transform, &mut CutAffects), (With<Fruit>, Without<Player>)>,
+    mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     mut movement: ResMut<Movement>,
-    mut fruit_query: Query<(&Transform, &mut CutAffects)>,
-    player_query: Query<&Transform, With<Player>>,
+    mut dash: ResMut<Dash>,
+    game_settings: ResMut<GameSettings>,
 ) {
     // The fruits are only cut when the player is dashing
     if !dash.is_dashing {
         return;
     }
 
-    for player_tf in player_query.iter() {
+    for (mut player_tf, mut player_vel) in player_query.iter_mut() {
         for (fruits_tf, mut cut_affects) in fruit_query.iter_mut() {
             if !cut_affects.can_be_cut {
                 continue;
@@ -382,6 +387,16 @@ fn fruit_collision_system(
 
                 dash.dashed = (dash.dashed as i32 - 1).max(0) as usize;
                 movement.jumped = (movement.jumped as i32 - 1).max(0) as usize;
+                
+                if game_settings.snap_on_cut {
+                    player_tf.translation = fruits_tf.translation;
+                }
+
+                if game_settings.dash_stop {
+                    end_dash(dash, &mut player_vel);
+                }
+                    
+                return;
             }
         }
     }

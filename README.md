@@ -4,7 +4,6 @@ A fruit ninja like game, but with an actual ninja
 # TODO
 - Add _Sound FX_
 - Add controller support
-- ADD A FREAKING BACKGROUND based on beatmap files (Soulspark)
 - Improve organization of beatmaps in the /assets/beatmaps/ folder
 - Adjust beatmap-based fruit spawning to actually play nicely with any beatmap (Soulspark)
 
@@ -18,3 +17,4 @@ A fruit ninja like game, but with an actual ninja
 - Make a system to tell when the fruits have fallen (a more basic player_corner_system() clone) (Shnawblle) [DONE]
 - Add a _**wonky**_ fruit falling when the fruit is cut (shnCanos) [DONE]
 - Normalize dash's vector (Soulspark) [DONE]
+- ADD A FREAKING BACKGROUND based on beatmap files (Soulspark)

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 # bevy = "0.8" # make sure this is the latest version
-bevy = { version = "0.8.0", default-features = false, features = ["bevy_asset", "bevy_winit", "render", "png", "mp3", "x11", "dynamic"] }
+bevy = { version = "0.8.0", default-features = false, features = ["bevy_asset", "bevy_winit", "render", "jpeg", "png", "mp3", "x11", "dynamic"] }
 bevy_kira_audio = "0.12.0"
 rand = "0.8.5"
 

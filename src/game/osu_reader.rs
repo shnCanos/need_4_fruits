@@ -8,6 +8,7 @@ use bevy::prelude::Vec2;
 pub enum OsuFileSection {
     KeyValueMap(HashMap<String, String>),
     HitObjects(Vec<HitObject>),
+    Events(String),
     None,
 }
 
@@ -16,6 +17,17 @@ pub struct HitObject {
     pub hit_type: usize,
     pub time: u32,
     pub position: Vec2,
+}
+
+fn event_processing(line: &str) -> Option<String> {
+    // Split line into its parts
+    let information: Vec<&str> = line.split(',').collect();
+
+    if information[0] == "0" && information[1] == "0" {
+        return Some(information[2].to_string().replace("\"", ""));
+    }
+
+    None
 }
 
 fn hitobject_processing(line: &str) -> HitObject {
@@ -72,12 +84,19 @@ pub fn open_osu(path: &str) -> HashMap<String, OsuFileSection> {
             // Create a new entry in the section map for that Section Title, with the type in the OsuFileSection Enum determined by the title name
             current_section = sections.entry(line.to_string()).or_insert(match *line {
                 "[HitObjects]" => OsuFileSection::HitObjects(vec![]),
+                "[Events]" => OsuFileSection::Events(String::new()),
                 _ => OsuFileSection::KeyValueMap(HashMap::new()),
             });
         } else {
             match current_section {
                 OsuFileSection::HitObjects(section_data) => {
                     section_data.push(hitobject_processing(line))
+                }
+                OsuFileSection::Events(background) => {
+                    match event_processing(line) {
+                        Some(value) => *background = value,
+                        None => ()
+                    }
                 }
                 OsuFileSection::KeyValueMap(section_map) => {
                     match json_like_key_value_get(line) {
