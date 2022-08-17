@@ -1,3 +1,4 @@
+use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use crate::game::beatmap_plugin::{Beatmap, BeatmapPlayback};
 use crate::game::common_components::MainCamera;
@@ -42,7 +43,7 @@ const FRUITS_GRAVITY_FALL: f32 = 1.2;
 // Beatmap
 const BEATMAP_INITIAL_WAIT_TIME: f32 = 0.5;
 const BEATMAP_MUSIC_OFFSET_TIME: f32 = 0.7;
-const BEATMAP_FILE_NAME: &str = "beatMARIO - Night of Knights (alacat) [Hard].osu";
+const BEATMAP_FILE_NAME: &str = "beatMARIO_-_Night_of_Knights_alacat_Hard.osu";
 /// How much of the screen's horizontal width is spawnable for fruits (0.0-1.0)
 const EFFECTIVE_SCREEN_WIDTH_PERCENT: f32 = 0.9;
 // Fruit Part
@@ -137,6 +138,16 @@ impl Plugin for MainPlugin {
 }
 //endregion
 
+pub fn is_game_state_criteria(
+    game_state: Res<State<GameStates>>,
+) -> ShouldRun {
+    let game_state = game_state.current();
+    if matches!(game_state, GameStates::Game) {
+        return ShouldRun::Yes;
+    }
+    ShouldRun::No
+}
+
 fn setup_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -181,6 +192,7 @@ fn setup_system(
 
     // mod.rs resources
     commands.insert_resource(Score(0));
+    commands.insert_resource(GameSettings::default());
 
     // ControlsPlugin resources
     commands.insert_resource(Movement::default());

@@ -88,7 +88,7 @@ fn beatmap_start_system(
     }
 }
 
-fn init_system(mut commands: Commands) {
+fn init_system(mut commands: Commands, asset_server: Res<AssetServer>) {
     let mut beatmap = Beatmap::default();
     let mut beatmap_playback = BeatmapPlayback::default();
 
@@ -128,6 +128,7 @@ fn init_system(mut commands: Commands) {
             
     commands.insert_resource(beatmap);
     commands.insert_resource(beatmap_playback);
+
     }
 }
 

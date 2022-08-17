@@ -284,7 +284,7 @@ fn dash_system(
         return; // Do nothing
     }
 
-    for (mut velocity, mut jows, mut sprite) in query.iter_mut() {
+    for (mut velocity, mut jows) in query.iter_mut() {
         // Cancel the dash if the player jumps
         if movement.jump && movement.jumped < MAX_PLAYER_JUMPS_MIDAIR {
             end_dash(dash, &mut velocity);
