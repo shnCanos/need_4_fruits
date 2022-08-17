@@ -161,6 +161,7 @@ fn movement_air_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) 
 fn player_movement_air_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
     mut movement: ResMut<Movement>,
+    time: Res<Time>,
 ) {
     for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
         // Make sure the player keeps the momentum until it is actually in the air
@@ -193,7 +194,7 @@ fn player_movement_air_system(
             velocity.y = PLAYER_FAST_FALLING_SPEED;
         } else {
             // Apply Gravity
-            velocity.y -= PLAYER_GRAVITY;
+            velocity.y -= PLAYER_GRAVITY * 60. * time.delta_seconds();
         }
 
         //region Apply JumpOffWallSpeed
@@ -283,7 +284,7 @@ fn player_movement_wall_system(
     }
 }
 
-fn can_dash_system(mut dash: ResMut<Dash>) {
+fn can_dash_system(mut dash: ResMut<Dash>, mut movement: ResMut<Movement>) {
     if !dash.trying_to_dash || dash.is_dashing {
         return; // Do nothing
     }
@@ -296,6 +297,7 @@ fn can_dash_system(mut dash: ResMut<Dash>) {
     dash.is_dashing = true;
     dash.duration = Timer::from_seconds(DASH_DURATION, false);
     dash.dashed += 1;
+    movement.is_fast_falling = false;
 }
 
 fn dash_system(

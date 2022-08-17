@@ -54,9 +54,10 @@ fn move_with_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time
     }
 }
 
-fn gravity_system(mut query: Query<(&mut Velocity, &GravityAffects)>) {
+fn gravity_system(mut query: Query<(&mut Velocity, &GravityAffects)>, time: Res<Time>) {
     for (mut vl, ga) in query.iter_mut() {
-        vl.y -= ga.strength
+        // Acceleration = ms^-2
+        vl.y -= ga.strength * 60. * time.delta_seconds();
     }
 }
 

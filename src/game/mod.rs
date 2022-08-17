@@ -35,13 +35,13 @@ const PLAYER_SIZE: Vec2 = Vec2::new(600. * PLAYER_SCALE.x, 600. * PLAYER_SCALE.y
 // Fruits
 // Air
 const FRUIT_SPEED: f32 = 25.;
-const FRUITS_GRAVITY_UP: f32 = 0.25;
-const FRUITS_GRAVITY_HOLD: f32 = 0.07;
-const FRUITS_GRAVITY_FALL: f32 = 0.5;
+const FRUITS_GRAVITY_UP: f32 = 0.6;
+const FRUITS_GRAVITY_HOLD: f32 = 0.168;
+const FRUITS_GRAVITY_FALL: f32 = 1.2;
 // Beatmap
 const BEATMAP_INITIAL_WAIT_TIME: f32 = 0.5;
 const BEATMAP_MUSIC_OFFSET_TIME: f32 = 0.7;
-const BEATMAP_FILE_NAME : &str = "beatMARIO - Night of Knights (alacat) [Hard].osu";
+const BEATMAP_FILE_NAME : &str = "beatMARIO_-_Night_of_Knights_alacat_Hard.osu";
 /// How much of the screen's horizontal width is spawnable for fruits (0.0-1.0)
 const EFFECTIVE_SCREEN_WIDTH_PERCENT: f32 = 0.9;
 // Fruit Part
