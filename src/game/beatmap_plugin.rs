@@ -20,7 +20,7 @@ impl Plugin for BeatmapPlugin {
             .add_system_set(
                 SystemSet::on_update(GameStates::Game)
                     .with_system(beatmap_start_system)
-
+                    .with_system(background_scaling_system)
             )
             .add_audio_channel::<MusicChannel>();
     }

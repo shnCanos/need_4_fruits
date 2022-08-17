@@ -18,6 +18,7 @@ impl Plugin for UIPlugin {
                 SystemSet::on_update(GameStates::Game) // Normal systems
                     .with_system(ui_update_system)
                     .with_system(button_system)
+                    .with_system(ui_post_setup_system)
                     .with_system(button_press_system)
             );
     }
