@@ -5,7 +5,7 @@ use crate::GameStates;
 
 use super::{
     osu_reader::{self, OsuFileSection},
-    BEATMAP_INITIAL_WAIT_TIME, BEATMAP_MUSIC_OFFSET_TIME, BEATMAP_FILE_NAME,
+    BEATMAP_FILE_NAME, BEATMAP_INITIAL_WAIT_TIME, BEATMAP_MUSIC_OFFSET_TIME,
 };
 
 pub struct BeatmapPlugin;
@@ -23,7 +23,6 @@ impl Plugin for BeatmapPlugin {
 
             )
             .add_audio_channel::<MusicChannel>();
-
     }
 }
 
@@ -43,6 +42,9 @@ pub struct BeatmapPlayback {
 // Audio Channel type for Music playback
 // Using a custom Audio Channel allows to pause/stop specific audios, while letting others be
 pub struct MusicChannel;
+
+#[derive(Component)]
+pub struct BackgroundSprite;
 
 // endregion
 fn beatmap_start_system(
@@ -107,6 +109,43 @@ fn init_system(mut commands: Commands) {
         beatmap_playback.music_offset_timer = Timer::from_seconds(BEATMAP_MUSIC_OFFSET_TIME, false);
     }
 
+    if let OsuFileSection::Events(background) = beatmap.0.get("[Events]").unwrap() {
+        let path = "beatmaps/".to_string() + background;
+
+        // Spawn background (starts off invisible, becomes visible when the image is loaded)
+        commands
+            .spawn_bundle(SpriteBundle {
+                transform: Transform::from_xyz(0., 0., -1.),
+                visibility: Visibility { is_visible: false },
+                texture: asset_server.load(&path).clone(),
+                sprite: Sprite {
+                    color: Color::GRAY,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .insert(BackgroundSprite);
+            
     commands.insert_resource(beatmap);
     commands.insert_resource(beatmap_playback);
+    }
+}
+
+fn background_scaling_system(
+    window: Res<Windows>,
+    images: ResMut<Assets<Image>>,
+    mut query: Query<(&Handle<Image>, &mut Sprite, &mut Visibility), With<BackgroundSprite>>,
+) {
+    let (handle, mut sprite, mut visibility) = query.single_mut();
+
+    // If the asset for the Background image has been loaded
+    if let Some(image) = images.get(&handle) {
+        let window = window.get_primary().unwrap();
+        // Set the size of the background to cover the entire screen
+        sprite.custom_size = Some(
+            image.size() * (window.width() / image.size().x).max(window.height() / image.size().y),
+        );
+
+        visibility.is_visible = true;
+    }
 }

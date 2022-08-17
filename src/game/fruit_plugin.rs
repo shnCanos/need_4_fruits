@@ -104,15 +104,11 @@ fn spawn_fruit_system(
                 (hit_object.position.x / 640. * effective_width) - effective_width / 2.;
 
             // Calculations for the fruit speed (gone sorta wrong)
-            // let y_factor = hit_object.position.y / 480. * 5.;
-            // let y_peak_position = (0.5 - hit_object.position.y / 480.) * effective_height;
-            // let effective_height = window.height() * EFFECTIVE_SCREEN_WIDTH_PERCENT;
+            let y_speed_offset = (0.5 - hit_object.position.y / 480.) * 10.;
 
             // ut = s - 1/2at^2
             // u = (s - 1/2at^2) / t
             // u = s/t - 1/2at
-            // let time_to_peak = 0.7 * 30.;
-            // let fruit_speed = (y_peak_position - y_spawn_position) / time_to_peak + 0.5 * FRUITS_GRAVITY_UP * time_to_peak;
 
             commands
                 .spawn_bundle(SpriteBundle {
@@ -126,7 +122,7 @@ fn spawn_fruit_system(
                 })
                 .insert(Velocity {
                     x: thread_rng().gen_range(-0.4..0.4),
-                    y: FRUIT_SPEED,
+                    y: FRUIT_SPEED + y_speed_offset,
                 })
                 .insert(GravityAffects {
                     strength: FRUITS_GRAVITY_UP,
