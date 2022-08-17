@@ -1,10 +1,4 @@
-use crate::game::{
-    common_components::{GravityAffects, TimeAnimation, Velocity},
-    controls::{Dash, Movement},
-    fruit_plugin::{Fruit, FruitPart},
-    player_plugin::Player,
-    Score, PLAYER_SIZE,
-};
+use crate::game::{common_components::{GravityAffects, TimeAnimation, Velocity}, controls::{Dash, Movement}, fruit_plugin::{Fruit, FruitPart}, player_plugin::Player, Score, PLAYER_SIZE, is_game_state_criteria};
 use bevy::prelude::*;
 use bevy_kira_audio::{AudioChannel, AudioControl};
 
@@ -14,16 +8,21 @@ pub struct CommonSystems;
 
 impl Plugin for CommonSystems {
     fn build(&self, app: &mut App) {
-        app.add_system_set_to_stage(
-            CoreStage::PreUpdate,
-            SystemSet::new()
-                .with_system(move_with_velocity_system)
-                .with_system(gravity_system)
-                .with_system(process_time_animations)
-                .with_system(restart_game_system),
-        )
-        .add_event::<RestartEvent>()
-        .add_startup_system(init_system);
+        app
+
+            .add_system_set_to_stage (
+                CoreStage::PreUpdate,
+                SystemSet::new() // These systems run before all the systems but are otherwise normal
+                    // This ensures the systems are only ran when the current state is Game
+                    .with_run_criteria(is_game_state_criteria)
+
+                    // The actual systems
+                    .with_system(move_with_velocity_system)
+                    .with_system(gravity_system)
+                    .with_system(process_time_animations)
+                    .with_system(restart_game_system),
+            )
+        .add_event::<RestartEvent>();
     }
 }
 
@@ -35,11 +34,6 @@ fn process_time_animations(
         time_animation.time += time.delta_seconds() as f32;
         (time_animation.callback)(&mut tf, time_animation.data.clone(), time_animation.time);
     });
-}
-
-fn init_system(mut restart_events: EventWriter<RestartEvent>) {
-    // Request a restart at the start of the game
-    restart_events.send_default()
 }
 
 fn move_with_velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {

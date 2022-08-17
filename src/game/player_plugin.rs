@@ -2,15 +2,11 @@ use crate::game::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
 use crate::game::common_systems::RestartEvent;
 use crate::game::controls::{Dash, Movement};
 use crate::game::fruit_plugin::CutAffects;
-use crate::game::{
-    TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE, JUMP_OFF_WALL_SPEED_ATTRITION,
-    MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY,
-    PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE,
-    PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
-};
+use crate::game::{TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE, JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, is_game_state_criteria};
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
+use crate::GameStates;
 
 use super::GameSettings;
 use super::fruit_plugin::Fruit;
@@ -20,23 +16,24 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system_to_stage(StartupStage::PostStartup, spawn_player_system)
-            .add_system(player_corners_system)
+        app
+
             .add_system_set(
-                SystemSet::new()
-                    .with_run_criteria(movement_air_criteria)
-                    .with_system(player_movement_air_system),
+                SystemSet::on_enter(GameStates::Game) // Post startup
+                    .with_system(spawn_player_system)
             )
             .add_system_set(
-                SystemSet::new()
-                    .with_run_criteria(movement_wall_criteria)
-                    .with_system(player_movement_wall_system),
-            )
-            .add_system(can_dash_system)
-            .add_system(dash_system)
-            .add_system(dash_aura_system)
-            .add_system(fruit_collision_system)
-            .add_system(player_bottom_system);
+                SystemSet::on_update(GameStates::Game) // Normal systems
+                    .with_system(can_dash_system)
+                    .with_system(dash_system)
+                    .with_system(dash_aura_system)
+                    .with_system(fruit_collision_system)
+                    .with_system(player_bottom_system)
+                    .with_system(player_corners_system)
+                    .with_system(player_movement_air_system)
+                    .with_system(player_movement_wall_system)
+                    .with_system(player_flip_system)
+            );
     }
 }
 //endregion
@@ -146,39 +143,29 @@ fn player_corners_system(
     }
 }
 
-fn movement_air_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) -> ShouldRun {
-    if dash.is_dashing {
-        return ShouldRun::No;
-    }
-    
-    if let Some(side) = &wall.get_single().unwrap().0 {
-        return match side {
-            Walls::Roof => ShouldRun::Yes,
-            Walls::JustLeft => ShouldRun::Yes,
-            _ => ShouldRun::No,
-        };
-    }
-    ShouldRun::Yes
-}
-
 fn player_movement_air_system(
-    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
     mut movement: ResMut<Movement>,
     time: Res<Time>,
+    dash: Res<Dash>,
 ) {
-    for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
+    for (mut velocity, mut jows, mut wall) in query.iter_mut() {
+
+        // Movement criteria
+        let option_wall: Option<Walls> = wall.0;
+        if !(
+            matches!(option_wall, Some(Walls::Roof | Walls::JustLeft))
+                || option_wall.is_none())
+                || dash.is_dashing {
+            return;
+        }
+
         // Make sure the player keeps the momentum until it is actually in the air
         if let Some(Walls::JustLeft) = wall.0 {
             wall.0 = None;
         }
 
         velocity.x = movement.x * PLAYER_SPEED;
-
-        if movement.x > 0. {
-            sprite.flip_x = false;
-        } else if movement.x < 0. {
-            sprite.flip_x = true;
-        }
 
         if movement.jump {
             movement.jump = false;
@@ -209,47 +196,22 @@ fn player_movement_air_system(
     }
 }
 
-fn movement_wall_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) -> ShouldRun {
-    if dash.is_dashing {
-        return ShouldRun::No;
-    }
-
-    match movement_air_criteria(wall, dash) {
-        ShouldRun::No => ShouldRun::Yes,
-        _ => ShouldRun::No,
-    }
-}
-
 fn player_movement_wall_system(
-    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
     mut movement: ResMut<Movement>,
     mut dash: ResMut<Dash>,
 ) {
-    for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
-        // If the player is on a wall, don't dash
-        // And ignore the trying to dash or the player
-        // Will dash right after leaving the wall
-        if let Some(wall) = &wall.0 {
-            if !matches!(wall, &Walls::Roof) {
-                dash.is_dashing = false;
-                dash.trying_to_dash = false;
-                dash.direction = Vec2::default();
-
-                // Restart the dashes count
-                dash.dashed = 0;
-            }
+    for (mut velocity, mut jows, mut wall) in query.iter_mut() {
+        // Movement Criteria
+        let option_wall: Option<Walls> = wall.0;
+        if !(option_wall.is_some() && !matches!(option_wall, Some(Walls::Roof))) || dash.is_dashing {
+            return;
         }
 
         if !matches!(wall.0, Some(Walls::JustLeft)) {
             velocity.x = 0.;
 
             velocity.y = -PLAYER_GRAVITY_ON_WALL;
-
-            if matches!(wall.0, Some(Walls::Left)) {
-                sprite.flip_x = false;
-            } else if matches!(wall.0, Some(Walls::Right)) {
-                sprite.flip_x = true;
-            }
 
             // There may be some jows left from the other wall if you travel fast enough
             // From one side to the other
@@ -287,7 +249,16 @@ fn player_movement_wall_system(
     }
 }
 
-fn can_dash_system(mut dash: ResMut<Dash>, mut movement: ResMut<Movement>) {
+fn can_dash_system(mut dash: ResMut<Dash>, mut movement: ResMut<Movement>, query: Query<&IsOnWall, With<Player>>) {
+    for wall in query.iter() {
+        if matches!(wall.0 ,Some(Walls::Left | Walls::Right)) {
+            dash.trying_to_dash = false;
+            dash.direction *= 0.;
+            dash.dashed = 0;
+            return;
+        }
+    }
+
     if !dash.trying_to_dash || dash.is_dashing {
         return; // Do nothing
     }
@@ -304,7 +275,7 @@ fn can_dash_system(mut dash: ResMut<Dash>, mut movement: ResMut<Movement>) {
 }
 
 fn dash_system(
-    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut Sprite), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed), With<Player>>,
     mut dash: ResMut<Dash>,
     time: Res<Time>,
     movement: Res<Movement>,
@@ -319,7 +290,6 @@ fn dash_system(
             end_dash(dash, &mut velocity);
             return;
         }
-
         if dash.duration.finished() {
             end_dash(dash, &mut velocity);
 
@@ -328,12 +298,6 @@ fn dash_system(
             // When you dash upwards
             (velocity.x, velocity.y) = (0., 0.);
             return;
-        }
-
-        if dash.direction.x > 0. {
-            sprite.flip_x = false;
-        } else if dash.direction.x < 0. {
-            sprite.flip_x = true;
         }
 
         let dash_velocity = dash.direction.normalize() * DASH_SPEED;
@@ -418,4 +382,33 @@ fn player_bottom_system(
             restart_events.send_default();
         }
     }
+}
+
+fn player_flip_system(
+    mut query: Query<(&Velocity, &mut Sprite, &IsOnWall), With<Player>>,
+    dash: Res<Dash>,
+) {
+    for (velocity, mut sprite, iow) in query.iter_mut() {
+        if let Some(wall) = iow.0 {
+            if matches!(wall, Walls::Right) {
+                sprite.flip_x = true;
+                return;
+            }
+            if matches!(wall, Walls::Left) {
+                sprite.flip_x = false;
+                return;
+            }
+        }
+
+        if dash.direction.x != 0. {
+            sprite.flip_x = dash.direction.x < 0.;
+            return;
+        }
+
+        if velocity.x != 0. {
+            sprite.flip_x = velocity.x < 0.;
+            return;
+        }
+    }
+
 }

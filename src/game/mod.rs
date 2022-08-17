@@ -1,5 +1,9 @@
-use crate::game::common_components::MainCamera;
 use bevy::prelude::*;
+use crate::game::beatmap_plugin::{Beatmap, BeatmapPlayback};
+use crate::game::common_components::MainCamera;
+use crate::game::common_systems::RestartEvent;
+use crate::game::controls::{Dash, MouseCoordinates, Movement};
+use crate::{GameStates, killall_system};
 
 //region Import Modules
 mod beatmap_plugin;
@@ -111,15 +115,24 @@ pub struct MainPlugin;
 
 impl Plugin for MainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_system)
-            .insert_resource(Score(0))
-            .insert_resource(GameSettings::default())
+        app
+            .add_system_set(
+                SystemSet::on_enter(GameStates::Loading) // Startup systems
+                    .with_system(setup_system)
+                    .with_system(killall_system)
+            )
             .add_plugin(common_systems::CommonSystems)
             .add_plugin(controls::ControlsPlugin)
             .add_plugin(ui_plugin::UIPlugin)
             .add_plugin(beatmap_plugin::BeatmapPlugin)
             .add_plugin(player_plugin::PlayerPlugin)
-            .add_plugin(fruit_plugin::FruitPlugin);
+            .add_plugin(fruit_plugin::FruitPlugin)
+
+            .add_system_set(
+                SystemSet::on_exit(GameStates::Game) // Startup systems
+                    .with_system(leave_game_system)
+                    .with_system(killall_system)
+            );
     }
 }
 //endregion
@@ -128,6 +141,8 @@ fn setup_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut game_state: ResMut<State<GameStates>>,
+    mut restart_events: EventWriter<RestartEvent>
 ) {
     // Spawn camera
     commands
@@ -139,6 +154,7 @@ fn setup_system(
 
     //region Add asset handles
     let mut fruits_pieces_texture_atlas = Vec::new();
+    
     FRUIT_ASSETS_PATH.iter().for_each(|path| {
         let rows_and_columns = (NUMBER_OF_FRUIT_PIECES as f32).sqrt().ceil() as usize;
         let texture_handle = asset_server.load(*path);
@@ -162,4 +178,32 @@ fn setup_system(
         aura: asset_server.load(AURA_PATH),
     });
     //endregion
+
+    // mod.rs resources
+    commands.insert_resource(Score(0));
+
+    // ControlsPlugin resources
+    commands.insert_resource(Movement::default());
+    commands.insert_resource(MouseCoordinates::default());
+    commands.insert_resource(Dash::default());
+
+    // Restart events
+    restart_events.send_default();
+
+    // BeatmapPlugin has its own init system
+
+    // Change to game
+    game_state.overwrite_set(GameStates::Game).unwrap();
+}
+
+fn leave_game_system(
+    mut commands: Commands
+) {
+    // Delete mod.rs resources
+    commands.remove_resource::<Score>();
+
+    // Delete ControlsPlugin resources
+    commands.remove_resource::<Movement>();
+    commands.remove_resource::<MouseCoordinates>();
+    commands.remove_resource::<Dash>();
 }
