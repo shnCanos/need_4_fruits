@@ -119,7 +119,13 @@ impl Plugin for MainPlugin {
             .add_plugin(ui_plugin::UIPlugin)
             .add_plugin(beatmap_plugin::BeatmapPlugin)
             .add_plugin(player_plugin::PlayerPlugin)
-            .add_plugin(fruit_plugin::FruitPlugin);
+            .add_plugin(fruit_plugin::FruitPlugin)
+
+            .add_system_set(
+                SystemSet::on_exit(GameStates::Game) // Startup systems
+                    .with_system(leave_game_system)
+                    .with_system(killall_system)
+            );
     }
 }
 //endregion
@@ -181,4 +187,16 @@ fn setup_system(
 
     // Change to game
     game_state.overwrite_set(GameStates::Game).unwrap();
+}
+
+fn leave_game_system(
+    mut commands: Commands
+) {
+    // Delete mod.rs resources
+    commands.remove_resource::<Score>();
+
+    // Delete ControlsPlugin resources
+    commands.remove_resource::<Movement>();
+    commands.remove_resource::<MouseCoordinates>();
+    commands.remove_resource::<Dash>();
 }
