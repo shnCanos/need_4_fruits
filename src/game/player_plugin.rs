@@ -11,29 +11,30 @@ use crate::game::{
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
+use crate::GameStates;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system_to_stage(StartupStage::PostStartup, spawn_player_system)
-            .add_system(player_corners_system)
+        app
+
             .add_system_set(
-                SystemSet::new()
-                    .with_run_criteria(movement_air_criteria)
-                    .with_system(player_movement_air_system),
+                SystemSet::on_enter(GameStates::Game) // Post startup
+                    .with_system(spawn_player_system)
             )
             .add_system_set(
-                SystemSet::new()
-                    .with_run_criteria(movement_wall_criteria)
-                    .with_system(player_movement_wall_system),
-            )
-            .add_system(can_dash_system)
-            .add_system(dash_system)
-            .add_system(dash_aura_system)
-            .add_system(fruit_collision_system)
-            .add_system(player_bottom_system);
+                SystemSet::on_update(GameStates::Game) // Normal systems
+                    .with_system(can_dash_system)
+                    .with_system(dash_system)
+                    .with_system(dash_aura_system)
+                    .with_system(fruit_collision_system)
+                    .with_system(player_bottom_system)
+                    .with_system(player_corners_system)
+                    .with_system(player_movement_air_system)
+                    .with_system(player_movement_wall_system)
+            );
     }
 }
 //endregion
@@ -143,27 +144,24 @@ fn player_corners_system(
     }
 }
 
-fn movement_air_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) -> ShouldRun {
-    if dash.is_dashing {
-        return ShouldRun::No;
-    }
-    
-    if let Some(side) = &wall.get_single().unwrap().0 {
-        return match side {
-            Walls::Roof => ShouldRun::Yes,
-            Walls::JustLeft => ShouldRun::Yes,
-            _ => ShouldRun::No,
-        };
-    }
-    ShouldRun::Yes
-}
-
 fn player_movement_air_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
     mut movement: ResMut<Movement>,
     time: Res<Time>,
+    dash: Res<Dash>,
 ) {
     for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
+
+        // Movement criteria
+        let option_wall: Option<Walls> = wall.0;
+        if !(
+            matches!(Some(Walls::Roof), option_wall)
+                || matches!(Some(Walls::JustLeft), option_wall)
+                || option_wall.is_none())
+                || dash.is_dashing {
+            return;
+        }
+
         // Make sure the player keeps the momentum until it is actually in the air
         if let Some(Walls::JustLeft) = wall.0 {
             wall.0 = None;
@@ -206,23 +204,18 @@ fn player_movement_air_system(
     }
 }
 
-fn movement_wall_criteria(wall: Query<&IsOnWall, With<Player>>, dash: Res<Dash>) -> ShouldRun {
-    if dash.is_dashing {
-        return ShouldRun::No;
-    }
-
-    match movement_air_criteria(wall, dash) {
-        ShouldRun::No => ShouldRun::Yes,
-        _ => ShouldRun::No,
-    }
-}
-
 fn player_movement_wall_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall, &mut Sprite), With<Player>>,
     mut movement: ResMut<Movement>,
     mut dash: ResMut<Dash>,
 ) {
     for (mut velocity, mut jows, mut wall, mut sprite) in query.iter_mut() {
+        // Movement Criteria
+        let option_wall: Option<Walls> = wall.0;
+        if !(option_wall.is_some() && !matches!(option_wall, Some(Walls::Roof))) || dash.is_dashing {
+            return;
+        }
+
         // If the player is on a wall, don't dash
         // And ignore the trying to dash or the player
         // Will dash right after leaving the wall

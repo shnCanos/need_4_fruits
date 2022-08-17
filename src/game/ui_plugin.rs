@@ -1,13 +1,21 @@
 use crate::game::Score;
 use bevy::prelude::*;
+use crate::GameStates;
 
 //region Plugin boilerplate
 pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system_to_stage(StartupStage::PostStartup, ui_setup_system)
-            .add_system(ui_update_system);
+        app.
+            add_system_set(
+            SystemSet::on_enter(GameStates::Game) // Post startup
+                .with_system(ui_setup_system)
+        )
+            .add_system_set(
+                SystemSet::on_update(GameStates::Game) // Normal systems
+                    .with_system(ui_update_system)
+            );
     }
 }
 //endregion

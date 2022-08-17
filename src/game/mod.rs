@@ -1,5 +1,10 @@
+use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
+use crate::game::beatmap_plugin::{Beatmap, BeatmapPlayback};
 use crate::game::common_components::MainCamera;
+use crate::game::common_systems::RestartEvent;
+use crate::game::controls::{Dash, MouseCoordinates, Movement};
+use crate::{GameStates, killall_system};
 
 //region Import Modules
 mod common_components;
@@ -103,8 +108,12 @@ pub struct MainPlugin;
 impl Plugin for MainPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_startup_system(setup_system)
-            .insert_resource(Score(0))
+            .add_system_set(
+                SystemSet::on_enter(GameStates::Loading) // Startup systems
+                    .with_system(setup_system)
+                    .with_system(killall_system)
+            )
+
             .add_plugin(common_systems::CommonSystems)
             .add_plugin(controls::ControlsPlugin)
             .add_plugin(ui_plugin::UIPlugin)
@@ -115,11 +124,22 @@ impl Plugin for MainPlugin {
 }
 //endregion
 
+pub fn is_game_state_criteria(
+    game_state: Res<State<GameStates>>,
+) -> ShouldRun {
+    if matches!(game_state.current(), GameStates::Game) {
+        return ShouldRun::Yes;
+    }
+    ShouldRun::No
+}
+
 
 fn setup_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut game_state: ResMut<State<GameStates>>,
+    mut restart_events: EventWriter<RestartEvent>
 ) {
     // Spawn camera
     commands.spawn_bundle(Camera2dBundle::default()).insert(MainCamera);
@@ -130,19 +150,35 @@ fn setup_system(
         |path| {
             let rows_and_columns = (NUMBER_OF_FRUIT_PIECES as f32).sqrt().ceil() as usize;
             let texture_handle = asset_server.load(*path);
-	        let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::splat(1024.) / rows_and_columns as f32, rows_and_columns, rows_and_columns);
-	        fruits_pieces_texture_atlas.push(texture_atlases.add(texture_atlas));
+            let texture_atlas = TextureAtlas::from_grid(texture_handle, Vec2::splat(1024.) / rows_and_columns as f32, rows_and_columns, rows_and_columns);
+            fruits_pieces_texture_atlas.push(texture_atlases.add(texture_atlas));
         }
     );
 
     commands.insert_resource(
-       TexturesHandles {
-           fruits: FRUIT_ASSETS_PATH.iter().map( |x| asset_server.load(*x) ).collect(),
-           fruits_pieces_texture_atlas, 
-           ninja: asset_server.load(NINJA_PATH),
-           aim: asset_server.load(AIM_PATH),
-           aura: asset_server.load(AURA_PATH),
-       }
-   );
+        TexturesHandles {
+            fruits: FRUIT_ASSETS_PATH.iter().map(|x| asset_server.load(*x)).collect(),
+            fruits_pieces_texture_atlas,
+            ninja: asset_server.load(NINJA_PATH),
+            aim: asset_server.load(AIM_PATH),
+            aura: asset_server.load(AURA_PATH),
+        }
+    );
     //endregion
+
+    // mod.rs resources
+    commands.insert_resource(Score(0));
+
+    // ControlsPlugin resources
+    commands.insert_resource(Movement::default());
+    commands.insert_resource(MouseCoordinates::default());
+    commands.insert_resource(Dash::default());
+
+    // Restart events
+    restart_events.send_default();
+
+    // BeatmapPlugin has its own init system
+
+    // Change to game
+    game_state.overwrite_set(GameStates::Game).unwrap();
 }

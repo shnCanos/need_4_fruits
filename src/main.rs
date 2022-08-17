@@ -2,9 +2,17 @@ use bevy::{prelude::*, window::{PresentMode, WindowMode}};
 use bevy_kira_audio::AudioPlugin;
 
 mod game;
+mod main_menu;
+
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+pub enum GameStates {
+        MainMenu,
+        Loading,
+        Game,
+}
 
 fn main() {
-    App::new()
+        App::new()
         .insert_resource(ClearColor(Color::rgb(0.3, 0.2, 0.4)))
         .insert_resource(WindowDescriptor {
             width: 1280.,
@@ -23,8 +31,15 @@ fn main() {
             canvas: None,
             fit_canvas_to_parent: false
         })
+        .add_state(GameStates::Loading)
         .add_plugins(DefaultPlugins)
         .add_plugin(AudioPlugin)
         .add_plugin(game::MainPlugin)
         .run();
+}
+
+fn killall_system(mut commands: Commands, query: Query<Entity>) {
+    for ent in query.iter() {
+        commands.entity(ent).despawn();
+    }
 }

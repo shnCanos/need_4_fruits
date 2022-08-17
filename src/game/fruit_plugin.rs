@@ -6,6 +6,7 @@ use crate::game::{
 };
 use bevy::prelude::*;
 use rand::{thread_rng, Rng};
+use crate::GameStates;
 
 use super::beatmap_plugin::{Beatmap, BeatmapPlayback};
 use super::osu_reader::OsuFileSection;
@@ -19,16 +20,24 @@ pub struct FruitPlugin;
 
 impl Plugin for FruitPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(
-            spawn_fruit_system
-                .after(fruit_corners_system)
-                .after(fruits_reach_bottom_system),
+        app
+            .add_system_set(
+            SystemSet::on_update(GameStates::Game)
+                .label("corners_and_reach_bottom")
+                .with_system(fruit_corners_system)
+                .with_system(fruits_reach_bottom_system)
         )
-        .add_system(fruit_corners_system)
-        .add_system(fruits_reach_bottom_system)
-        .add_system(fruits_get_cut_system)
-        .add_system(fruits_cuttable_system)
-        .add_system(fruit_part_eliminate_system);
+
+            .add_system_set(
+            SystemSet::on_update(GameStates::Game)
+                .with_system(spawn_fruit_system).after("corners_and_reach_bottom")
+        )
+            .add_system_set(
+                SystemSet::on_update(GameStates::Game)
+                    .with_system(fruits_get_cut_system)
+                    .with_system(fruits_cuttable_system)
+                    .with_system(fruit_part_eliminate_system)
+            );
     }
 }
 //endregion
