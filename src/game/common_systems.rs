@@ -56,7 +56,11 @@ fn gravity_system(mut query: Query<(&mut Velocity, &GravityAffects)>, time: Res<
 }
 
 #[derive(Default)]
-pub struct RestartEvent;
+pub enum RestartEvent {
+    #[default]
+    All,
+    OnlyPlayer
+}
 
 fn restart_game_system(
     mut query: Query<(&mut Transform, &mut Velocity), With<Player>>,
@@ -68,51 +72,55 @@ fn restart_game_system(
     mut beatmap_playback: ResMut<BeatmapPlayback>,
     music_channel: Res<AudioChannel<MusicChannel>>,
     window: Res<Windows>,
-    restart_events: EventReader<RestartEvent>,
+    mut restart_events: EventReader<RestartEvent>,
 ) {
     if restart_events.is_empty() {
         return;
     }
-    // Prevent events from staying active next frame.
-    restart_events.clear();
 
-    for (mut tf, mut vl) in query.iter_mut() {
-        let window = window.get_primary().unwrap();
-        let max_w = window.width() / 2. - PLAYER_SIZE.x / 2.;
+    for event in restart_events.iter() {
+        for (mut tf, mut vl) in query.iter_mut() {
+            let window = window.get_primary().unwrap();
+            let max_w = window.width() / 2. - PLAYER_SIZE.x / 2.;
 
-        // Reset variables
-        score.0 = 0;
-        
-        vl.x = 0.;
-        vl.y = 0.;
-        tf.translation.x = -max_w;
-        tf.translation.y = 0.;
-        
-        movement.jump = false;
-        movement.jumped = 0;
-        movement.is_fast_falling = false;
-        
-        dash.dashed = 0;
-        dash.is_dashing = false;
-        dash.trying_to_dash = false;
-        dash.direction = Vec2::ZERO;
-        
-        music_channel.stop();
-        
-        beatmap_playback.current_hit_object_id = 0;
-        beatmap_playback.play_timer.reset();
-        beatmap_playback.play_timer.pause();
-        beatmap_playback.music_offset_timer.reset();
-        beatmap_playback.music_offset_timer.pause();
-        beatmap_playback.start_timer.reset();
-        beatmap_playback.beatmap_started = false;
-        // TODO: wait does this really not work?
-        // *movement.as_mut() = Movement::default();
-        // *dash.as_mut() = Dash::default();
+            // Reset variables
+            vl.x = 0.;
+            vl.y = 0.;
+            tf.translation.x = -max_w;
+            tf.translation.y = 0.;
+            
+            movement.jump = false;
+            movement.jumped = 0;
+            movement.is_fast_falling = false;
+            
+            dash.dashed = 0;
+            dash.is_dashing = false;
+            dash.trying_to_dash = false;
+            dash.direction = Vec2::ZERO;
+            
+            if let RestartEvent::OnlyPlayer = event {
+                return;
+            }
+            
+            score.0 = 0;
+            
+            music_channel.stop();
+            
+            beatmap_playback.current_hit_object_id = 0;
+            beatmap_playback.play_timer.reset();
+            beatmap_playback.play_timer.pause();
+            beatmap_playback.music_offset_timer.reset();
+            beatmap_playback.music_offset_timer.pause();
+            beatmap_playback.start_timer.reset();
+            beatmap_playback.beatmap_started = false;
+            // TODO: wait does this really not work?
+            // *movement.as_mut() = Movement::default();
+            // *dash.as_mut() = Dash::default();
 
-        // Despawn all fruits
-        despawn_fruit_query.for_each(|entity| commands.entity(entity).despawn());
+            // Despawn all fruits
+            despawn_fruit_query.for_each(|entity| commands.entity(entity).despawn());
 
-        break; // Tell the compiler that the loop won't repeat more than once
+            break; // Tell the compiler that the loop won't repeat more than once
+        }
     }
 }

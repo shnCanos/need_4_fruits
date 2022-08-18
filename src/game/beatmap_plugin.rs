@@ -1,7 +1,7 @@
+use crate::GameStates;
 use bevy::prelude::*;
 use bevy_kira_audio::{AudioApp, AudioChannel, AudioControl};
 use std::{collections::HashMap, time::Duration};
-use crate::GameStates;
 
 use super::{
     osu_reader::{self, OsuFileSection},
@@ -12,15 +12,11 @@ pub struct BeatmapPlugin;
 
 impl Plugin for BeatmapPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_system_set(
-                SystemSet::on_enter(GameStates::Loading)
-                    .with_system(init_system)
-            )
+        app.add_system_set(SystemSet::on_enter(GameStates::Loading).with_system(init_system))
             .add_system_set(
                 SystemSet::on_update(GameStates::Game)
                     .with_system(beatmap_start_system)
-                    .with_system(background_scaling_system)
+                    .with_system(background_scaling_system),
             )
             .add_audio_channel::<MusicChannel>();
     }
@@ -89,12 +85,10 @@ fn beatmap_start_system(
 }
 
 fn init_system(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let mut beatmap = Beatmap::default();
-    let mut beatmap_playback = BeatmapPlayback::default();
-
     // Request a restart at the start of the game
     let path = "assets/beatmaps/".to_string() + BEATMAP_FILE_NAME;
-    beatmap = Beatmap(osu_reader::open_osu(&path));
+    let beatmap = Beatmap(osu_reader::open_osu(&path));
+    let mut beatmap_playback = BeatmapPlayback::default();
 
     // Get the HitObjects list
     if let OsuFileSection::HitObjects(hit_objects) = beatmap.0.get("[HitObjects]").unwrap() {
@@ -119,17 +113,16 @@ fn init_system(mut commands: Commands, asset_server: Res<AssetServer>) {
                 visibility: Visibility { is_visible: false },
                 texture: asset_server.load(&path).clone(),
                 sprite: Sprite {
-                    color: Color::GRAY,
+                    color: Color::DARK_GRAY,
                     ..Default::default()
                 },
                 ..Default::default()
             })
             .insert(BackgroundSprite);
-            
+    }
+
     commands.insert_resource(beatmap);
     commands.insert_resource(beatmap_playback);
-
-    }
 }
 
 fn background_scaling_system(

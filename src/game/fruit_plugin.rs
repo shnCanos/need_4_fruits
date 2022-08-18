@@ -12,7 +12,7 @@ use super::beatmap_plugin::{Beatmap, BeatmapPlayback};
 use super::osu_reader::OsuFileSection;
 use super::{
     BEATMAP_MUSIC_OFFSET_TIME, EFFECTIVE_SCREEN_WIDTH_PERCENT, FRUITS_GRAVITY_FALL,
-    FRUITS_GRAVITY_HOLD, FRUITS_GRAVITY_UP,
+    FRUITS_GRAVITY_HOLD, FRUITS_GRAVITY_UP, GameSettings,
 };
 
 //region Plugin Boilerplate
@@ -180,12 +180,16 @@ fn fruit_part_eliminate_system(
 fn fruits_reach_bottom_system(
     mut query: Query<(Entity, &IsOnWall), With<Fruit>>,
     mut restart_events: EventWriter<RestartEvent>,
+    game_settings: Res<GameSettings>,
 ) {
     for (_, wall) in query.iter_mut() {
         // If the fruit hits the floor
         if let Some(_) = wall.0 {
             // Request game to be restarted
-            restart_events.send_default();
+            if !game_settings.no_death_penalty {
+                restart_events.send_default();
+            }
+
             break;
         }
     }

@@ -1,6 +1,6 @@
 use crate::game::Score;
-use bevy::prelude::*;
 use crate::GameStates;
+use bevy::prelude::*;
 
 use super::GameSettings;
 
@@ -9,18 +9,17 @@ pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
     fn build(&self, app: &mut App) {
-        app.
-            add_system_set(
+        app.add_system_set(
             SystemSet::on_enter(GameStates::Game) // Post startup
-                .with_system(ui_setup_system)
+                .with_system(ui_setup_system),
         )
-            .add_system_set(
-                SystemSet::on_update(GameStates::Game) // Normal systems
-                    .with_system(ui_update_system)
-                    .with_system(button_system)
-                    .with_system(ui_post_setup_system)
-                    .with_system(button_press_system)
-            );
+        .add_system_set(
+            SystemSet::on_update(GameStates::Game) // Normal systems
+                .with_system(ui_update_system)
+                .with_system(button_system)
+                .with_system(ui_post_setup_system)
+                .with_system(button_press_system),
+        );
     }
 }
 //endregion
@@ -36,10 +35,15 @@ pub struct ToggleButton(String, bool);
 pub enum SettingsButton {
     DashStop,
     SnapOnCut,
+    NoDeathPenalty,
 }
 //endregion
 
-fn ui_setup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn ui_setup_system(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    game_settings: Res<GameSettings>,
+) {
     let font = asset_server.load("fonts/Rubik-Regular.ttf");
 
     commands
@@ -108,7 +112,10 @@ fn ui_setup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
                         .with_children(|parent| {
                             parent.spawn_bundle(button_text(Color::WHITE, &font, ""));
                         })
-                        .insert(ToggleButton("Dash Stop".to_string(), false))
+                        .insert(ToggleButton(
+                            "Dash Stop".to_string(),
+                            game_settings.dash_stop,
+                        ))
                         .insert(SettingsButton::DashStop);
 
                     // Snap on Cut Button
@@ -117,8 +124,23 @@ fn ui_setup_system(mut commands: Commands, asset_server: Res<AssetServer>) {
                         .with_children(|parent| {
                             parent.spawn_bundle(button_text(Color::WHITE, &font, ""));
                         })
-                        .insert(ToggleButton("Snap on Cut".to_string(), true))
+                        .insert(ToggleButton(
+                            "Snap on Cut".to_string(),
+                            game_settings.snap_on_cut,
+                        ))
                         .insert(SettingsButton::SnapOnCut);
+
+                    // Snap on Cut Button
+                    parent
+                        .spawn_bundle(button(Color::DARK_GRAY))
+                        .with_children(|parent| {
+                            parent.spawn_bundle(button_text(Color::WHITE, &font, ""));
+                        })
+                        .insert(ToggleButton(
+                            "No Death Penalty".to_string(),
+                            game_settings.no_death_penalty,
+                        ))
+                        .insert(SettingsButton::NoDeathPenalty);
                 });
         });
 }
@@ -199,6 +221,7 @@ fn button_press_system(
             match settings {
                 SettingsButton::DashStop => game_settings.dash_stop = toggle.1,
                 SettingsButton::SnapOnCut => game_settings.snap_on_cut = toggle.1,
+                SettingsButton::NoDeathPenalty => game_settings.no_death_penalty = toggle.1,
             };
         }
     }

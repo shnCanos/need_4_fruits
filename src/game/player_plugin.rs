@@ -2,38 +2,41 @@ use crate::game::common_components::{IsOnWall, TimeAnimation, Velocity, Walls};
 use crate::game::common_systems::RestartEvent;
 use crate::game::controls::{Dash, Movement};
 use crate::game::fruit_plugin::CutAffects;
-use crate::game::{TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE, JUMP_OFF_WALL_SPEED_ATTRITION, MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY, PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE, PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL, is_game_state_criteria};
-use bevy::ecs::schedule::ShouldRun;
+use crate::game::{
+    TexturesHandles, DASH_DURATION, DASH_SPEED, FRUITS_SIZE, JUMP_OFF_WALL_SPEED_ATTRITION,
+    MAX_PLAYER_DASHES_MIDAIR, MAX_PLAYER_JUMPS_MIDAIR, PLAYER_FAST_FALLING_SPEED, PLAYER_GRAVITY,
+    PLAYER_GRAVITY_ON_WALL, PLAYER_HORIZONTAL_JUMP_WALL, PLAYER_JUMP, PLAYER_SCALE, PLAYER_SIZE,
+    PLAYER_SPEED, PLAYER_VERTICAL_JUMP_WALL,
+};
+
+use crate::GameStates;
 use bevy::prelude::*;
 use bevy::sprite::collide_aabb::collide;
-use crate::GameStates;
 
-use super::GameSettings;
 use super::fruit_plugin::Fruit;
+use super::GameSettings;
 
 //region Plugin boilerplate
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app
-
-            .add_system_set(
-                SystemSet::on_enter(GameStates::Game) // Post startup
-                    .with_system(spawn_player_system)
-            )
-            .add_system_set(
-                SystemSet::on_update(GameStates::Game) // Normal systems
-                    .with_system(can_dash_system)
-                    .with_system(dash_system)
-                    .with_system(dash_aura_system)
-                    .with_system(fruit_collision_system)
-                    .with_system(player_bottom_system)
-                    .with_system(player_corners_system)
-                    .with_system(player_movement_air_system)
-                    .with_system(player_movement_wall_system)
-                    .with_system(player_flip_system)
-            );
+        app.add_system_set(
+            SystemSet::on_enter(GameStates::Game) // Post startup
+                .with_system(spawn_player_system),
+        )
+        .add_system_set(
+            SystemSet::on_update(GameStates::Game) // Normal systems
+                .with_system(can_dash_system)
+                .with_system(dash_system)
+                .with_system(dash_aura_system)
+                .with_system(fruit_collision_system)
+                .with_system(player_bottom_system)
+                .with_system(player_corners_system)
+                .with_system(player_movement_air_system)
+                .with_system(player_movement_wall_system)
+                .with_system(player_flip_system),
+        );
     }
 }
 //endregion
@@ -150,13 +153,11 @@ fn player_movement_air_system(
     dash: Res<Dash>,
 ) {
     for (mut velocity, mut jows, mut wall) in query.iter_mut() {
-
         // Movement criteria
         let option_wall: Option<Walls> = wall.0;
-        if !(
-            matches!(option_wall, Some(Walls::Roof | Walls::JustLeft))
-                || option_wall.is_none())
-                || dash.is_dashing {
+        if !(matches!(option_wall, Some(Walls::Roof | Walls::JustLeft)) || option_wall.is_none())
+            || dash.is_dashing
+        {
             return;
         }
 
@@ -199,12 +200,13 @@ fn player_movement_air_system(
 fn player_movement_wall_system(
     mut query: Query<(&mut Velocity, &mut JumpOffWallSpeed, &mut IsOnWall), With<Player>>,
     mut movement: ResMut<Movement>,
-    mut dash: ResMut<Dash>,
+    dash: ResMut<Dash>,
 ) {
     for (mut velocity, mut jows, mut wall) in query.iter_mut() {
         // Movement Criteria
         let option_wall: Option<Walls> = wall.0;
-        if !(option_wall.is_some() && !matches!(option_wall, Some(Walls::Roof))) || dash.is_dashing {
+        if !(option_wall.is_some() && !matches!(option_wall, Some(Walls::Roof))) || dash.is_dashing
+        {
             return;
         }
 
@@ -249,9 +251,13 @@ fn player_movement_wall_system(
     }
 }
 
-fn can_dash_system(mut dash: ResMut<Dash>, mut movement: ResMut<Movement>, query: Query<&IsOnWall, With<Player>>) {
+fn can_dash_system(
+    mut dash: ResMut<Dash>,
+    mut movement: ResMut<Movement>,
+    query: Query<&IsOnWall, With<Player>>,
+) {
     for wall in query.iter() {
-        if matches!(wall.0 ,Some(Walls::Left | Walls::Right)) {
+        if matches!(wall.0, Some(Walls::Left | Walls::Right)) {
             dash.trying_to_dash = false;
             dash.direction *= 0.;
             dash.dashed = 0;
@@ -309,7 +315,7 @@ fn dash_system(
     }
 }
 
-fn end_dash(mut dash: ResMut<Dash>, mut velocity : &mut Velocity) {
+fn end_dash(mut dash: ResMut<Dash>, mut velocity: &mut Velocity) {
     // Needs to specify dash or two mutable borrows may occur at the same time
     //region Change dash variables
     dash.direction = Vec2::default();
@@ -351,7 +357,7 @@ fn fruit_collision_system(
 
                 dash.dashed = (dash.dashed as i32 - 1).max(0) as usize;
                 movement.jumped = (movement.jumped as i32 - 1).max(0) as usize;
-                
+
                 if game_settings.snap_on_cut {
                     player_tf.translation = fruits_tf.translation;
                 }
@@ -359,7 +365,7 @@ fn fruit_collision_system(
                 if game_settings.dash_stop {
                     end_dash(dash, &mut player_vel);
                 }
-                    
+
                 return;
             }
         }
@@ -375,11 +381,13 @@ fn dash_aura_system(mut query: Query<&mut Visibility, With<DashAura>>, dash: Res
 fn player_bottom_system(
     mut query: Query<&IsOnWall, With<Player>>,
     mut restart_events: EventWriter<RestartEvent>,
+    game_settings: Res<GameSettings>,
+    
 ) {
     for is_on_wall in query.iter_mut() {
         if matches!(is_on_wall.0, Some(Walls::Floor)) {
             // Request game to be restarted
-            restart_events.send_default();
+            restart_events.send(if game_settings.no_death_penalty { RestartEvent::OnlyPlayer } else { RestartEvent::All });
         }
     }
 }
@@ -410,5 +418,4 @@ fn player_flip_system(
             return;
         }
     }
-
 }

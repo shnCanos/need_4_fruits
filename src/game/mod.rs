@@ -1,6 +1,5 @@
 use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
-use crate::game::beatmap_plugin::{Beatmap, BeatmapPlayback};
 use crate::game::common_components::MainCamera;
 use crate::game::common_systems::RestartEvent;
 use crate::game::controls::{Dash, MouseCoordinates, Movement};
@@ -90,11 +89,12 @@ struct KeyboardControls {
 pub struct GameSettings {
     pub dash_stop : bool,
     pub snap_on_cut : bool,
+    pub no_death_penalty : bool
 }
 
 impl Default for GameSettings {
     fn default() -> Self {
-        Self { dash_stop: false, snap_on_cut: true }
+        Self { dash_stop: false, snap_on_cut: false, no_death_penalty: false }
     }
 }
 
