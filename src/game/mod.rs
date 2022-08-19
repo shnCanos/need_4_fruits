@@ -79,6 +79,10 @@ struct TexturesHandles {
     aura: Handle<Image>,
 }
 
+struct FontHandles {
+    rubik_regular: Handle<Font>,
+}
+
 struct KeyboardControls {
     up: Vec<KeyCode>,
     down: Vec<KeyCode>,
@@ -109,6 +113,10 @@ impl KeyboardControls {
     }
 }
 
+// There are, as of now, two different functions that run in parallel when the loading GameState is active
+// They have to wait for each other, and this resource is used to make sure everything is set when the game
+// Starts
+pub struct SectionsLoaded( pub usize ); 
 //endregion
 
 //region Main Plugin Definition
@@ -122,6 +130,11 @@ impl Plugin for MainPlugin {
                     .with_system(setup_system)
                     .with_system(killall_system)
             )
+            .add_system_set(
+                SystemSet::on_update(GameStates::Loading)
+                .with_system(update_loading_screen)
+            )
+            .insert_resource(SectionsLoaded ( 0 ))
             .add_plugin(common_systems::CommonSystems)
             .add_plugin(controls::ControlsPlugin)
             .add_plugin(ui_plugin::UIPlugin)
@@ -152,8 +165,8 @@ fn setup_system(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
-    mut game_state: ResMut<State<GameStates>>,
-    mut restart_events: EventWriter<RestartEvent>
+    mut restart_events: EventWriter<RestartEvent>,
+    mut sections_loaded: ResMut<SectionsLoaded>,
 ) {
     // Spawn camera
     commands
@@ -188,6 +201,12 @@ fn setup_system(
         aim: asset_server.load(AIM_PATH),
         aura: asset_server.load(AURA_PATH),
     });
+
+    commands.insert_resource(
+        FontHandles {
+            rubik_regular: asset_server.load("fonts/Rubik-Regular.ttf"),
+        }
+    );
     //endregion
 
     // mod.rs resources
@@ -204,8 +223,14 @@ fn setup_system(
 
     // BeatmapPlugin has its own init system
 
-    // Change to game
-    game_state.overwrite_set(GameStates::Game).unwrap();
+    // Tell the loading screen that this section is loaded
+    sections_loaded.0 += 1;
+}
+
+fn update_loading_screen(mut game_state: ResMut<State<GameStates>>, sections_loaded: Res<SectionsLoaded>) {
+    if sections_loaded.0 == 2 {
+        game_state.overwrite_set(GameStates::Game).unwrap();
+    }
 }
 
 fn leave_game_system(

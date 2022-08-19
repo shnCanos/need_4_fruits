@@ -5,7 +5,7 @@ use std::{collections::HashMap, time::Duration};
 
 use super::{
     osu_reader::{self, OsuFileSection},
-    BEATMAP_FILE_NAME, BEATMAP_INITIAL_WAIT_TIME, BEATMAP_MUSIC_OFFSET_TIME,
+    BEATMAP_FILE_NAME, BEATMAP_INITIAL_WAIT_TIME, BEATMAP_MUSIC_OFFSET_TIME, SectionsLoaded,
 };
 
 pub struct BeatmapPlugin;
@@ -35,6 +35,8 @@ pub struct BeatmapPlayback {
     pub current_hit_object_id: usize,
 }
 
+struct BeatMapSong( Handle<bevy_kira_audio::AudioSource> );
+
 // Audio Channel type for Music playback
 // Using a custom Audio Channel allows to pause/stop specific audios, while letting others be
 pub struct MusicChannel;
@@ -45,7 +47,7 @@ pub struct BackgroundSprite;
 // endregion
 fn beatmap_start_system(
     mut beatmap_playback: ResMut<BeatmapPlayback>,
-    asset_server: Res<AssetServer>,
+    music: Res<BeatMapSong>,
     time: Res<Time>,
     beatmap: ResMut<Beatmap>,
     music_channel: Res<AudioChannel<MusicChannel>>,
@@ -69,22 +71,13 @@ fn beatmap_start_system(
         .tick(time.delta())
         .just_finished()
     {
-        // Try to get the filename for the music to play
-        let mut audio_filename = &String::new();
-        if let OsuFileSection::KeyValueMap(section_data) = beatmap.0.get("[General]").unwrap() {
-            audio_filename = section_data.get("AudioFilename").unwrap();
-        }
-
-        // TODO: get rid of temporary forced conversion and actually accept .mp3 files
-        let audio_filename = audio_filename.replace(".mp3", ".ogg");
-        let music = asset_server.load(&("beatmaps/".to_string() + &audio_filename));
 
         // Play this 'music' asset in the MusicChannel
-        music_channel.play(music);
+        music_channel.play(music.0.clone());
     }
 }
 
-fn init_system(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn init_system(mut commands: Commands, asset_server: Res<AssetServer>, mut sections_loaded: ResMut<SectionsLoaded>) {
     // Request a restart at the start of the game
     let path = "assets/beatmaps/".to_string() + BEATMAP_FILE_NAME;
     let beatmap = Beatmap(osu_reader::open_osu(&path));
@@ -121,8 +114,22 @@ fn init_system(mut commands: Commands, asset_server: Res<AssetServer>) {
             .insert(BackgroundSprite);
     }
 
+    // Get song
+    let mut audio_filename = &String::new();
+    if let OsuFileSection::KeyValueMap(section_data) = beatmap.0.get("[General]").unwrap() {
+        audio_filename = section_data.get("AudioFilename").unwrap();
+    }
+
+    // TODO: get rid of temporary forced conversion and actually accept .mp3 files
+    let audio_filename = audio_filename.replace(".mp3", ".ogg");
+    let music = asset_server.load(&("beatmaps/".to_string() + &audio_filename));
+    
+    commands.insert_resource(BeatMapSong(music));
+
     commands.insert_resource(beatmap);
     commands.insert_resource(beatmap_playback);
+
+    sections_loaded.0 += 1;
 }
 
 fn background_scaling_system(
