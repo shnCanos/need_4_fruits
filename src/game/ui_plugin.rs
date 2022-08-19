@@ -2,7 +2,7 @@ use crate::game::Score;
 use crate::GameStates;
 use bevy::prelude::*;
 
-use super::GameSettings;
+use super::{GameSettings, FontHandles};
 
 //region Plugin boilerplate
 pub struct UIPlugin;
@@ -41,10 +41,10 @@ pub enum SettingsButton {
 
 fn ui_setup_system(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
+    fonts: Res<FontHandles>,
     game_settings: Res<GameSettings>,
 ) {
-    let font = asset_server.load("fonts/Rubik-Regular.ttf");
+    let font = fonts.rubik_regular.clone();
 
     commands
         .spawn_bundle(
